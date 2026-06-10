@@ -51,7 +51,13 @@ async function loadJourneyDashboard(force = false) {
   window.setTimeout(async () => {
     const ai = await EXL.apiFetch('/api/ai/dashboard?year=' + year + '&max=8');
     if (ai?.recommendations) updateAiTriggerState(ai.recommendations);
-    if (ai?.summary) document.getElementById('journey-ai-text').textContent = ai.summary || '';
+    const summaryBar = document.getElementById('journey-ai-summary');
+    const summaryText = document.getElementById('journey-ai-text');
+    const summary = ai?.disabled ? '' : (ai?.summary || '');
+    if (summaryBar && summaryText) {
+      summaryText.textContent = summary;
+      summaryBar.hidden = !summary;
+    }
   }, 250);
 }
 
@@ -371,8 +377,10 @@ function renderJourneyTrend(data) {
         {
           label: 'Appointments Booked',
           data: months.map(m => m.bookings),
-          backgroundColor: 'rgba(2, 194, 183, 0.72)',
-          borderColor: 'rgba(2, 194, 183, 1)',
+          exlColor: 'accent',
+          exlAlpha: 0.72,
+          backgroundColor: EXL.colorWithAlpha(EXL.colors.accent, 0.72),
+          borderColor: EXL.colorWithAlpha(EXL.colors.accent, 1),
           borderWidth: 1,
           borderRadius: 4,
           stack: 'appointments',
@@ -380,8 +388,10 @@ function renderJourneyTrend(data) {
         {
           label: 'Appointments Cancelled (D-1)',
           data: months.map(m => m.cancellations),
-          backgroundColor: 'rgba(251, 130, 129, 0.78)',
-          borderColor: 'rgba(251, 130, 129, 1)',
+          exlColor: 'cancel',
+          exlAlpha: 0.82,
+          backgroundColor: EXL.colorWithAlpha(EXL.colors.cancel, 0.82),
+          borderColor: EXL.colorWithAlpha(EXL.colors.cancel, 1),
           borderWidth: 1,
           borderRadius: 4,
           stack: 'appointments',
@@ -389,8 +399,10 @@ function renderJourneyTrend(data) {
         {
           label: 'Appointments Aborted',
           data: months.map(m => m.aborts),
-          backgroundColor: 'rgba(244, 210, 90, 0.82)',
-          borderColor: 'rgba(244, 210, 90, 1)',
+          exlColor: 'abort',
+          exlAlpha: 0.84,
+          backgroundColor: EXL.colorWithAlpha(EXL.colors.abort, 0.84),
+          borderColor: EXL.colorWithAlpha(EXL.colors.abort, 1),
           borderWidth: 1,
           borderRadius: 4,
           stack: 'appointments',
@@ -474,7 +486,7 @@ function renderRegionalHeatmapLegacy(data) {
     const isRed = r.rag === 'Red';
     const isAmber = r.rag === 'Amber';
     const borderColor = isRed ? 'var(--crit)' : (isAmber ? 'var(--warn)' : 'var(--ok)');
-    const bgColor = isRed ? 'rgba(251, 130, 129, 0.05)' : (isAmber ? 'rgba(244, 210, 90, 0.05)' : 'rgba(2, 129, 120, 0.05)');
+    const bgColor = isRed ? 'rgba(217, 48, 37, 0.05)' : (isAmber ? 'rgba(251, 78, 11, 0.05)' : 'rgba(0, 80, 113, 0.05)');
 
     return `
       <div style="background: var(--bg-card); border: 1px solid var(--border); border-top: 4px solid ${borderColor}; border-radius: var(--radius-md); padding: 18px; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s;">
@@ -504,11 +516,11 @@ function renderRegionalHeatmapLegacy(data) {
            </div>
            <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border: 1px solid var(--border);">
               <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Cancelled (D-1)</div>
-              <div style="font-size:15px; font-weight:700; color:var(--crit);">${EXL.fmt.num(r.cancellations)}</div>
+              <div style="font-size:15px; font-weight:700; color:var(--status-cancel);">${EXL.fmt.num(r.cancellations)}</div>
            </div>
            <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border: 1px solid var(--border);">
               <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Aborted On Day</div>
-              <div style="font-size:15px; font-weight:700; color:var(--warn);">${EXL.fmt.num(r.aborts)}</div>
+              <div style="font-size:15px; font-weight:700; color:var(--status-abort);">${EXL.fmt.num(r.aborts)}</div>
            </div>
         </div>
       </div>

@@ -1440,7 +1440,7 @@ def ai_summary():
     year = _request_year()
     try:
         if not _ai_enabled():
-            return jsonify({"summary": "AI recommendations are disabled on this deployment."})
+            return jsonify({"disabled": True, "summary": ""})
         _, get_summary = _get_ai_engine()
         return jsonify({"summary": get_summary(year)})
     except Exception as e:
@@ -1456,7 +1456,8 @@ def ai_dashboard():
             recs = _disabled_ai_payload(max_results)
             return jsonify({
                 "recommendations": recs,
-                "summary": recs["message"],
+                "disabled": True,
+                "summary": "",
             })
         get_recs, get_summary = _get_ai_engine()
         recs = get_recs(year, max_results)

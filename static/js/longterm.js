@@ -176,7 +176,7 @@ function ltRenderKPIs(months) {
 
   strip.innerHTML = kpis.map(k => `
     <div class="lt-kpi lt-kpi--${k.cls}">
-      <div class="lt-kpi-icon">${k.icon}</div>
+      <div class="lt-kpi-icon"></div>
       <div class="lt-kpi-body">
         <div class="lt-kpi-val">${k.value}</div>
         <div class="lt-kpi-label">${k.label}</div>
@@ -184,6 +184,7 @@ function ltRenderKPIs(months) {
       </div>
     </div>
   `).join('');
+  EXL.hydrateIcons?.(strip);
 }
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────

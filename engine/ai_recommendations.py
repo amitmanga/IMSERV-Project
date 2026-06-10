@@ -1,5 +1,5 @@
 """
-IMSERV Platform — AI Recommendation Engine
+EXL Platform — AI Recommendation Engine
 Generates intelligent operational recommendations from cross-module signals.
 Produces prioritised alerts for the executive dashboard.
 """
@@ -245,7 +245,7 @@ def get_natural_language_summary(year: int = 2025, recommendations: dict = None)
         health = "strong" if margin > 22 and crit == 0 else ("at risk" if crit > 2 else "stable")
 
         summary = (
-            f"IMSERV operational health is {health} for {year}. "
+            f"EXL operational health is {health} for {year}. "
             f"Overall margin is {margin}% with {fin['total_completions']:,} completions "
             f"at £{fin['avg_cost_per_completion']:.0f} average cost per job. "
         )

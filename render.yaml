@@ -10,7 +10,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ENABLE_AI_RECOMMENDATIONS
-        value: "false"
+        value: "true"
       - key: ENABLE_DATABASE
         value: "false"
       - key: HF_TOKEN

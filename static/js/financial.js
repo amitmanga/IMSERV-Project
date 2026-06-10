@@ -69,8 +69,8 @@ function renderMonthlyChart(trend) {
     data: {
       labels,
       datasets: [
-        { label: 'Meter Delivery Revenue GBP', data: trend.map(t => t.revenue),  backgroundColor: 'rgba(2,129,120,0.55)', yAxisID: 'y'  },
-        { label: 'Meter Delivery Cost GBP',    data: trend.map(t => t.cost),     backgroundColor: 'rgba(251,130,129,0.45)', yAxisID: 'y'  },
+        { label: 'Meter Delivery Revenue GBP', data: trend.map(t => t.revenue),  backgroundColor: 'rgba(0,80,113,0.55)', yAxisID: 'y'  },
+        { label: 'Meter Delivery Cost GBP',    data: trend.map(t => t.cost),     backgroundColor: 'rgba(217,48,37,0.45)', yAxisID: 'y'  },
         { label: 'Margin %',   data: trend.map(t => t.margin_pct),borderColor: EXL.colors.accent, type: 'line', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1' },
       ],
     },
@@ -98,9 +98,9 @@ function renderJobTypeChart(breakdown) {
     data: {
       labels,
       datasets: [
-        { label: 'Revenue GBP', data: breakdown.map(j => j.revenue), backgroundColor: 'rgba(2,129,120,0.6)'   },
-        { label: 'Cost GBP',    data: breakdown.map(j => j.cost),    backgroundColor: 'rgba(251,130,129,0.45)' },
-        { label: 'Margin GBP',  data: breakdown.map(j => j.margin),  backgroundColor: 'rgba(2,129,120,0.55)'},
+        { label: 'Revenue GBP', data: breakdown.map(j => j.revenue), backgroundColor: 'rgba(0,80,113,0.6)'   },
+        { label: 'Cost GBP',    data: breakdown.map(j => j.cost),    backgroundColor: 'rgba(217,48,37,0.45)' },
+        { label: 'Margin GBP',  data: breakdown.map(j => j.margin),  backgroundColor: 'rgba(0,80,113,0.55)'},
       ],
     },
     options: {
@@ -213,7 +213,7 @@ function renderScenarioResults(data) {
   const ctx = document.getElementById('waterfall-chart');
   if (ctx && data.waterfall) {
     const wf = data.waterfall;
-    const colors = wf.map(b => b.type === 'base' ? 'rgba(2,129,120,0.7)' : (b.type === 'cost' ? 'rgba(251,130,129,0.65)' : (b.value >= 0 ? 'rgba(2,129,120,0.65)' : 'rgba(251,130,129,0.5)')));
+    const colors = wf.map(b => b.type === 'base' ? 'rgba(0,80,113,0.7)' : (b.type === 'cost' ? 'rgba(217,48,37,0.65)' : (b.value >= 0 ? 'rgba(0,80,113,0.65)' : 'rgba(217,48,37,0.5)')));
     EXL.destroyChart('waterfall');
     EXL.registerChart('waterfall', new Chart(ctx, {
       type: 'bar',

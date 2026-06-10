@@ -143,16 +143,16 @@ function renderCapacityForecast(data) {
   const forecastCtx = document.getElementById('capacity-forecast-chart');
   if (forecastCtx && weekly.length) {
     const datasets = [
-      { label: 'Appointments Booked 2026', type: 'bar', data: weekly.map(w => w.required_fte), borderColor: 'rgba(251,130,129,0.78)', backgroundColor: 'rgba(251,130,129,0.22)', borderWidth: 1, borderRadius: 3, barPercentage: 0.86, categoryPercentage: 0.82 },
-      { label: '2025 Capacity FTE', data: weekly.map(w => w.capacity_2025_fte), borderColor: EXL.colors.muted, backgroundColor: 'rgba(74,107,124,0.08)', borderDash: [3, 3], fill: false, tension: 0.25, pointRadius: 0 },
-      { label: 'Capacity 2026', data: weekly.map(w => w.net_forecast_fte), borderColor: EXL.colors.ok, backgroundColor: 'rgba(2,129,120,0.08)', borderDash: [6, 4], fill: false, tension: 0.28, pointRadius: 0 },
+      { label: 'Appointments Booked 2026', type: 'bar', data: weekly.map(w => w.required_fte), borderColor: 'rgba(217,48,37,0.78)', backgroundColor: 'rgba(217,48,37,0.22)', borderWidth: 1, borderRadius: 3, barPercentage: 0.86, categoryPercentage: 0.82 },
+      { label: '2025 Capacity FTE', data: weekly.map(w => w.capacity_2025_fte), borderColor: EXL.colors.muted, backgroundColor: 'rgba(98,103,111,0.08)', borderDash: [3, 3], fill: false, tension: 0.25, pointRadius: 0 },
+      { label: 'Capacity 2026', data: weekly.map(w => w.net_forecast_fte), borderColor: EXL.colors.ok, backgroundColor: 'rgba(0,80,113,0.08)', borderDash: [6, 4], fill: false, tension: 0.28, pointRadius: 0 },
     ];
     if (scale) {
       datasets.push({
         label: 'Implemented Optimised FTE',
         data: weekly.map(w => Number((w.current_capacity_fte * scale).toFixed(1))),
         borderColor: EXL.colors.orange,
-        backgroundColor: 'rgba(244,210,90,0.08)',
+        backgroundColor: 'rgba(251,78,11,0.08)',
         fill: false,
         tension: 0.28,
         pointRadius: 0,
@@ -169,7 +169,7 @@ function renderCapacityForecast(data) {
         plugins: EXL.chartDefaults.plugins,
         scales: {
           ...EXL.chartDefaults.scales,
-          y: { ...EXL.chartDefaults.scales.y, title: { display: true, text: 'FTE / day', color: '#737373' } },
+          y: { ...EXL.chartDefaults.scales.y, title: { display: true, text: 'FTE / day', color: '#808080' } },
         },
       },
     }));
@@ -190,7 +190,7 @@ function renderCapacityForecast(data) {
         datasets: [{
           label: 'Net FTE - Required FTE',
           data: gaps,
-          backgroundColor: gaps.map(g => g < 0 ? 'rgba(251,130,129,0.68)' : 'rgba(2,129,120,0.62)'),
+          backgroundColor: gaps.map(g => g < 0 ? 'rgba(217,48,37,0.68)' : 'rgba(0,80,113,0.62)'),
           borderColor: gaps.map(g => g < 0 ? EXL.colors.crit : EXL.colors.ok),
           borderWidth: 1,
         }],
@@ -293,8 +293,8 @@ async function loadCapacityMatrix() {
     data: {
       labels: regions,
       datasets: [
-        { label: 'Avg Weekly Engineer Capacity', data: capVals, backgroundColor: 'rgba(2,129,120,0.55)',   yAxisID: 'y'  },
-        { label: 'Avg Weekly Appointments Booked', data: demVals, backgroundColor: 'rgba(2,194,183,0.55)', yAxisID: 'y' },
+        { label: 'Avg Weekly Engineer Capacity', data: capVals, backgroundColor: 'rgba(0,80,113,0.55)',   yAxisID: 'y'  },
+        { label: 'Avg Weekly Appointments Booked', data: demVals, backgroundColor: 'rgba(0,78,255,0.55)', yAxisID: 'y' },
         { label: 'Utilisation %',       data: utilVals,borderColor: EXL.colors.warn, type: 'line', fill: false, tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
       ],
     },
@@ -304,7 +304,7 @@ async function loadCapacityMatrix() {
       plugins: EXL.chartDefaults.plugins,
       scales: {
         ...EXL.chartDefaults.scales,
-        y:  { ...EXL.chartDefaults.scales.y, position: 'left',  title: { display: true, text: 'Smart meter jobs / week', color: '#737373' } },
+        y:  { ...EXL.chartDefaults.scales.y, position: 'left',  title: { display: true, text: 'Smart meter jobs / week', color: '#808080' } },
         y1: { ...EXL.chartDefaults.scales.y, position: 'right', grid: { display: false },
                ticks: { ...EXL.chartDefaults.scales.y.ticks, callback: v => v + '%' },
                min: 0, max: 120 },

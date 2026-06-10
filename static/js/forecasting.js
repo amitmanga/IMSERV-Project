@@ -161,7 +161,7 @@ function renderChannelBreakdown(kpis) {
   // Doughnut chart
   const ctx = document.getElementById('channel-breakdown-chart');
   if (ctx && channels.length) {
-    const colours = ['#028178','#02C2B7','#03F4E8','#7FFFD4','#737373','#4A6B7C'];
+    const colours = ['#FB4E0B','#004EFF','#A100FF','#005071','#808080','#62676F'];
     EXL.destroyChart('channel-breakdown');
     EXL.registerChart('channel-breakdown', new Chart(ctx, {
       type: 'doughnut',
@@ -179,7 +179,7 @@ function renderChannelBreakdown(kpis) {
         maintainAspectRatio: false,
         plugins: {
           ...EXL.chartDefaults.plugins,
-          legend: { position: 'right', labels: { color: '#4A6B7C', font: { size: 11 }, padding: 10 } },
+          legend: { position: 'right', labels: { color: '#62676F', font: { size: 11 }, padding: 10 } },
         },
       },
     }));
@@ -266,7 +266,7 @@ function renderForecastChart(data) {
   if (!ctx) return;
 
   const modelForecasts = data.model_forecasts || {};
-  const modelColors = { Prophet: '#028178', ARIMA: '#02C2B7', XGBoost: '#F4D25A', LightGBM: '#4A6B7C' };
+  const modelColors = { Prophet: '#005071', ARIMA: '#004EFF', XGBoost: '#FB4E0B', LightGBM: '#62676F' };
   renderForecastModelToggle(modelForecasts);
   const activeModel = _activeForecastModel;
   updateForecastTitle(activeModel);
@@ -276,8 +276,8 @@ function renderForecastChart(data) {
   const centralLabel = activeModel ? `${activeModel} Contact Attempt Forecast` : 'P50 Contact Attempt Forecast';
   const centralColor = activeModel ? (modelColors[activeModel] || EXL.colors.accent) : EXL.colors.accent;
   const isLightTheme = EXL.getTheme?.() !== 'dark';
-  const bandBorderColor = isLightTheme ? 'rgba(178,128,0,0.72)' : 'rgba(244,210,90,0.5)';
-  const bandFillColor = isLightTheme ? 'rgba(178,128,0,0.10)' : 'rgba(244,210,90,0.06)';
+  const bandBorderColor = isLightTheme ? 'rgba(178,128,0,0.72)' : 'rgba(251,78,11,0.5)';
+  const bandFillColor = isLightTheme ? 'rgba(178,128,0,0.10)' : 'rgba(251,78,11,0.06)';
 
   const horizon = Math.min(52, data.labels?.length || centralForecast.length || 0);
   const weekLabels = Array.from({ length: horizon }, (_, i) => `W${i + 1}`);
@@ -300,7 +300,7 @@ function renderForecastChart(data) {
         {
           label: '2025 Actual Contact Attempts',
           data: actual2025,
-          borderColor: '#02C2B7',
+          borderColor: '#004EFF',
           backgroundColor: 'rgba(74,197,187,0.08)',
           fill: false,
           tension: 0.4,
@@ -311,7 +311,7 @@ function renderForecastChart(data) {
           label: activeModel ? `2026 ${activeModel} Contact Attempt Forecast` : '2026 Ensemble Contact Attempt Forecast (P50)',
           data: forecast2026,
           borderColor: centralColor,
-          backgroundColor: 'rgba(2,194,183,0.10)',
+          backgroundColor: 'rgba(0,78,255,0.10)',
           fill: false,
           tension: 0.4,
           pointRadius: 0,
@@ -384,7 +384,7 @@ function renderModelAccuracyVisual(accuracy) {
   container.innerHTML = rows.map((d, idx) => {
     const accuracyPct = Math.max(0, 100 - (d.mape || 0));
     const tone = accuracyPct > 85 ? 'strong' : (accuracyPct >= 75 ? 'steady' : 'risk');
-    const barColor = tone === 'strong' ? '#028178' : tone === 'steady' ? '#F4D25A' : '#FB8281';
+    const barColor = tone === 'strong' ? '#005071' : tone === 'steady' ? '#FB4E0B' : '#D93025';
     const maePct = Math.max(4, (d.mae || 0) / maxMae * 100);
     const rmsePct = Math.max(4, (d.rmse || 0) / maxRmse * 100);
     const label = tone === 'strong' ? 'High accuracy' : tone === 'steady' ? 'Planning fit' : 'Watch variance';
@@ -418,7 +418,7 @@ renderModelAccuracy = function renderModelAccuracy(accuracy) {
 function renderModelComparison(data) {
   const ctx = document.getElementById('model-comparison-chart');
   if (!ctx || !data.model_forecasts) return;
-  const modelColors = { Prophet: '#028178', ARIMA: '#02C2B7', XGBoost: '#F4D25A', LightGBM: '#4A6B7C' };
+  const modelColors = { Prophet: '#005071', ARIMA: '#004EFF', XGBoost: '#FB4E0B', LightGBM: '#62676F' };
   const datasets = Object.entries(data.model_forecasts).map(([m, vals]) => ({
     label: m,
     data: vals.slice(0, 26),
@@ -465,8 +465,8 @@ async function loadConversionTrend() {
     data: {
       labels,
       datasets: [
-        { label: 'Total Visits',           data: visits, backgroundColor: 'rgba(2,129,120,0.5)',  yAxisID: 'y' },
-        { label: 'Executed Successfully',  data: cp,     backgroundColor: 'rgba(2,129,120,0.5)',yAxisID: 'y' },
+        { label: 'Total Visits',           data: visits, backgroundColor: 'rgba(0,80,113,0.5)',  yAxisID: 'y' },
+        { label: 'Executed Successfully',  data: cp,     backgroundColor: 'rgba(0,80,113,0.5)',yAxisID: 'y' },
         { label: 'Success Rate %',         data: cr,     borderColor: EXL.colors.accent, type: 'line', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1' },
       ],
     },
