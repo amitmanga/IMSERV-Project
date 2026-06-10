@@ -112,7 +112,7 @@ function tsApplyWindowChrome() {
 async function tsEnsureWindow() {
   if (_tsWindow) return _tsWindow;
   try {
-    _tsWindow = await IMSERV.apiFetch('/api/data/actual-window', { force: true });
+    _tsWindow = await EXL.apiFetch('/api/data/actual-window', { force: true });
   } catch (err) {
     console.warn('Timeslot actual window metadata unavailable', err);
   }
@@ -122,7 +122,7 @@ async function tsEnsureWindow() {
 }
 
 function tsQs() {
-  const region = IMSERV.getRegion();
+  const region = EXL.getRegion();
   let qs = `filter_type=${_tsFilterType}&filter_value=${encodeURIComponent(_tsFilterValue)}`;
   if (region)      qs += `&region=${region}`;
   if (_tsSupplier) qs += `&supplier=${encodeURIComponent(_tsSupplier)}`;
@@ -136,7 +136,7 @@ async function loadTimeslotDashboard(force = false) {
 
   tsSetLoading();
   try {
-    const dashboard = await IMSERV.apiFetch('/api/timeslot/dashboard?' + tsQs(), { force });
+    const dashboard = await EXL.apiFetch('/api/timeslot/dashboard?' + tsQs(), { force });
     _tsDashCache = dashboard;   // cache for theme-only re-renders
     const chData   = dashboard?.channel_booking;
     const bizData  = dashboard?.business_type;
@@ -162,7 +162,7 @@ async function loadTimeslotDashboard(force = false) {
 // On theme change — ONLY re-render the heatmap (the one section with theme-dependent
 // inline background/color styles baked in). Everything else is pure CSS and updates
 // automatically via [data-theme="dark"] selectors — no API call, no spinners.
-window.addEventListener('imserv:themechange', () => {
+window.addEventListener('exl:themechange', () => {
   if (_tsLoaded && _tsDashCache?.business_type) {
     renderTsBizWrap(_tsDashCache.business_type);
   }
@@ -170,7 +170,7 @@ window.addEventListener('imserv:themechange', () => {
 
 function tsSetLoading(isLoading = true) {
   const targets = ['ts-summary-kpis', 'ts-outcome-grid','ts-channel-grid','ts-biz-wrap','ts-attempts-grid','ts-agent-grid'];
-  if (window.IMSERV?.setLoading) IMSERV.setLoading(targets, isLoading);
+  if (window.EXL?.setLoading) EXL.setLoading(targets, isLoading);
   if (!isLoading) return;
   ['ts-outcome-grid','ts-channel-grid','ts-biz-wrap','ts-attempts-grid','ts-agent-grid'].forEach(id => {
     const el = document.getElementById(id);
@@ -180,7 +180,7 @@ function tsSetLoading(isLoading = true) {
 
 /* ── Summary KPI Cards ─────────────────────────────────────────── */
 function renderTsSummaryKpis(s) {
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
 
   // Bookings card
   const bkEl = document.getElementById('ts-kpi-bookings');
@@ -356,7 +356,7 @@ function renderTsChannelGrid(data) {
   const container = document.getElementById('ts-channel-grid');
   if (!container) return;
 
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
   const allChannels = [...new Set(TS_SLOTS.flatMap(s => (data[s] || []).map(r => r.channel)))];
 
   const html = TS_SLOTS.map(slot => {
@@ -411,7 +411,7 @@ function renderTsBizWrap(data) {
   const container = document.getElementById('ts-biz-wrap');
   if (!container) return;
 
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
 
   // Left: by slot (heatmap table)
   const bySlot = data.by_slot || {};
@@ -524,7 +524,7 @@ function renderTsAttemptsGrid(data) {
   const container = document.getElementById('ts-attempts-grid');
   if (!container) return;
 
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
   const maxAtt = Math.max(...TS_SLOTS.map(s => (data[s]?.attempts || 0)), 1);
 
   const html = TS_SLOTS.map(slot => {
@@ -584,7 +584,7 @@ function renderTsAgentGrid(data) {
   const container = document.getElementById('ts-agent-grid');
   if (!container) return;
 
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
   const rowsData = Array.isArray(data) ? data : [];
   if (!rowsData.length) {
     container.innerHTML = '<div class="empty-state"><div class="empty-title">No voice agent data available</div></div>';
@@ -676,7 +676,7 @@ function renderDiallerOutcome(rows) {
     return;
   }
 
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
 
   const tbody = rows.map(r => {
     const stateCls = r.category_state === 'Usable' ? 'do-badge-usable' : 'do-badge-lowvol';

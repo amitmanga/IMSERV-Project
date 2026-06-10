@@ -1,4 +1,4 @@
-/* IMSERV — Module 1: Appointment Journey Dashboard */
+/* EXL — Module 1: Appointment Journey Dashboard */
 
 let _journeyTrendChart = null;
 let _regionalSuccessView = 'requests';
@@ -6,10 +6,10 @@ let _lastRegionalHeatmapData = null;
 let _ukBoundaryGeoJsonPromise = null;
 
 async function loadJourneyDashboard(force = false) {
-  const region   = IMSERV.getRegion();
-  const year     = IMSERV.getYear();
+  const region   = EXL.getRegion();
+  const year     = EXL.getYear();
   const supplier = document.getElementById('journey-supplier-filter')?.value || '';
-  const qs       = IMSERV.getGlobalQs();
+  const qs       = EXL.getGlobalQs();
   refreshJourneyVisualLabels();
   const loadingTargets = [
     'journey-trend-chart',
@@ -17,11 +17,11 @@ async function loadJourneyDashboard(force = false) {
     'decomposition-tree-container',
     'supplier-behaviour-grid',
   ];
-  IMSERV.setLoading(loadingTargets, true);
+  EXL.setLoading(loadingTargets, true);
 
   try {
     // Keep the first paint light; AI recommendations load after the main dashboard.
-    const dashboard = await IMSERV.apiFetch('/api/journey/dashboard' + qs + '&top_n=25', { force });
+    const dashboard = await EXL.apiFetch('/api/journey/dashboard' + qs + '&top_n=25', { force });
     const kpis = dashboard?.kpis;
     const heatmap = dashboard?.regional_heatmap;
     const trend = dashboard?.weekly_trend;
@@ -45,11 +45,11 @@ async function loadJourneyDashboard(force = false) {
     const treeContainer = document.getElementById('decomposition-tree-container');
     if (decomposition && treeContainer) renderDecompositionTree(decomposition, treeContainer);
   } finally {
-    IMSERV.setLoading(loadingTargets, false);
+    EXL.setLoading(loadingTargets, false);
   }
 
   window.setTimeout(async () => {
-    const ai = await IMSERV.apiFetch('/api/ai/dashboard?year=' + year + '&max=8');
+    const ai = await EXL.apiFetch('/api/ai/dashboard?year=' + year + '&max=8');
     if (ai?.recommendations) updateAiTriggerState(ai.recommendations);
     if (ai?.summary) document.getElementById('journey-ai-text').textContent = ai.summary || '';
   }, 250);
@@ -57,13 +57,13 @@ async function loadJourneyDashboard(force = false) {
 
 async function loadJourneySuppliersOnly(force = false) {
   const supplier = document.getElementById('journey-supplier-filter')?.value || '';
-  const qs = IMSERV.getGlobalQs({ top_n: 25, ...(supplier ? { supplier } : {}) });
-  IMSERV.setLoading('supplier-behaviour-grid', true);
+  const qs = EXL.getGlobalQs({ top_n: 25, ...(supplier ? { supplier } : {}) });
+  EXL.setLoading('supplier-behaviour-grid', true);
   try {
-    const suppliers = await IMSERV.apiFetch('/api/journey/suppliers' + qs, { force });
+    const suppliers = await EXL.apiFetch('/api/journey/suppliers' + qs, { force });
     if (suppliers) renderSupplierBehaviour(suppliers);
   } finally {
-    IMSERV.setLoading('supplier-behaviour-grid', false);
+    EXL.setLoading('supplier-behaviour-grid', false);
   }
 }
 
@@ -81,7 +81,7 @@ function refreshJourneyVisualLabels() {
     const subtitle = title.closest('.card-header')?.querySelector('.card-subtitle');
     if (subtitle) subtitle.textContent = match[1];
   });
-  IMSERV.hydrateIcons(document.getElementById('view-journey'));
+  EXL.hydrateIcons(document.getElementById('view-journey'));
 }
 
 function renderCustomerInteractions(data) {
@@ -93,7 +93,7 @@ function renderCustomerInteractions(data) {
 
   const routes = data.routes || [];
   if (total) {
-    total.innerHTML = `<strong>${IMSERV.fmt.num(data.total_interactions)}</strong> interactions`;
+    total.innerHTML = `<strong>${EXL.fmt.num(data.total_interactions)}</strong> interactions`;
   }
 
   if (!routes.length) {
@@ -113,9 +113,9 @@ function renderCustomerInteractions(data) {
       </div>
       <div class="interaction-stage">${r.journey_stage}</div>
       <div class="interaction-route-metrics">
-        <div><span>Interactions</span><strong>${IMSERV.fmt.num(r.interactions)}</strong></div>
-        <div><span>Appointments Booked</span><strong>${IMSERV.fmt.num(r.bookings)}</strong></div>
-        <div><span>Conversion</span><strong>${IMSERV.fmt.pct(r.conversion_pct)}</strong></div>
+        <div><span>Interactions</span><strong>${EXL.fmt.num(r.interactions)}</strong></div>
+        <div><span>Appointments Booked</span><strong>${EXL.fmt.num(r.bookings)}</strong></div>
+        <div><span>Conversion</span><strong>${EXL.fmt.pct(r.conversion_pct)}</strong></div>
       </div>
     </div>
   `).join('');
@@ -124,11 +124,11 @@ function renderCustomerInteractions(data) {
     <div class="interaction-type-card ${t.customer_interaction_type === 'Chat' ? 'chat' : 'voice'}">
       <div>
         <div class="interaction-type-name">${t.customer_interaction_type}</div>
-        <div class="interaction-type-meta">${IMSERV.fmt.pct(t.share_pct)} of interactions</div>
+        <div class="interaction-type-meta">${EXL.fmt.pct(t.share_pct)} of interactions</div>
       </div>
       <div class="interaction-type-values">
-        <strong>${IMSERV.fmt.num(t.interactions)}</strong>
-        <span>${IMSERV.fmt.num(t.bookings)} appointments booked</span>
+        <strong>${EXL.fmt.num(t.interactions)}</strong>
+        <span>${EXL.fmt.num(t.bookings)} appointments booked</span>
       </div>
     </div>
   `).join('');
@@ -138,14 +138,14 @@ function renderCustomerInteractions(data) {
     const top = data.top_route;
     insight.innerHTML = best && top ? `
       <div class="stat-chip">Top source: <strong>${top.source_interaction_channel}</strong></div>
-      <div class="stat-chip">Best conversion: <strong>${best.source_interaction_channel} ${IMSERV.fmt.pct(best.conversion_pct)}</strong></div>
+      <div class="stat-chip">Best conversion: <strong>${best.source_interaction_channel} ${EXL.fmt.pct(best.conversion_pct)}</strong></div>
     ` : '';
   }
 }
 
 function renderJourneyKPIs(kpis) {
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
   const p   = v => String(Math.round(v));
 
   const uniqueCustomers  = kpis.unique_customers
@@ -167,7 +167,7 @@ function renderJourneyKPIs(kpis) {
   set('kpi-completions',         fmt(completed));
   set('kpi-avg-contacts', '3');
   set('kpi-bookings',            fmt(kpis.total_visits ?? Math.max(booked - cancelled, 0)));
-  set('kpi-completion-rate',     IMSERV.fmt.pct(kpis.completion_rate));
+  set('kpi-completion-rate',     EXL.fmt.pct(kpis.completion_rate));
 
   // ── Funnel badge renderer ───────────────────────────────────────────────────
   // Builds a coloured badge with trend arrow + hover tooltip showing the formula.
@@ -298,22 +298,22 @@ function renderFunnel(kpis) {
         <div class="funnel-label">${s.label}</div>
         <div class="funnel-bar-wrap">
           <div class="funnel-bar ${s.cls}" style="width:${pct}%">
-            ${IMSERV.fmt.num(s.val)}
+            ${EXL.fmt.num(s.val)}
           </div>
         </div>
-        <div class="funnel-value">${IMSERV.fmt.num(s.val)}</div>
+        <div class="funnel-value">${EXL.fmt.num(s.val)}</div>
       </div>
     `;
   }).join('') + `
     <div class="d-flex gap-8 mt-12 flex-wrap justify-content-center">
-      <span class="stat-chip">Success Rate: <strong>${IMSERV.fmt.pct(kpis.completion_rate)}</strong></span>
+      <span class="stat-chip">Success Rate: <strong>${EXL.fmt.pct(kpis.completion_rate)}</strong></span>
       <span class="stat-chip">Average Contacts Per Customer: <strong>${kpis.avg_contacts_per_customer?.toFixed(2) || '—'}</strong></span>
     </div>
   `;
 }
 
 function renderJourneyTrend(data) {
-  IMSERV.destroyChart('journey-trend');
+  EXL.destroyChart('journey-trend');
   const container = document.getElementById('journey-trend-chart');
   if (!container) return;
 
@@ -363,7 +363,7 @@ function renderJourneyTrend(data) {
   const ctx = document.getElementById('journey-trend-canvas')?.getContext('2d');
   if (!ctx) return;
 
-  IMSERV.registerChart('journey-trend', new Chart(ctx, {
+  EXL.registerChart('journey-trend', new Chart(ctx, {
     type: 'bar',
     data: {
       labels: months.map(m => m.label),
@@ -402,27 +402,27 @@ function renderJourneyTrend(data) {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        ...IMSERV.chartDefaults.plugins,
+        ...EXL.chartDefaults.plugins,
         tooltip: {
-          ...IMSERV.chartDefaults.plugins.tooltip,
+          ...EXL.chartDefaults.plugins.tooltip,
           callbacks: {
-            label: ctx => `${ctx.dataset.label}: ${IMSERV.fmt.num(ctx.parsed.y)}`,
+            label: ctx => `${ctx.dataset.label}: ${EXL.fmt.num(ctx.parsed.y)}`,
           },
         },
       },
       scales: {
         x: {
-          ...IMSERV.chartDefaults.scales.x,
+          ...EXL.chartDefaults.scales.x,
           stacked: true,
           grid: { display: false },
         },
         y: {
-          ...IMSERV.chartDefaults.scales.y,
+          ...EXL.chartDefaults.scales.y,
           stacked: true,
           beginAtZero: true,
           ticks: {
-            ...IMSERV.chartDefaults.scales.y.ticks,
-            callback: value => IMSERV.fmt.num(value),
+            ...EXL.chartDefaults.scales.y.ticks,
+            callback: value => EXL.fmt.num(value),
           },
         },
       },
@@ -446,7 +446,7 @@ function renderRegionalHeatmapLegacy(data) {
           <div class="regional-radar-orb" style="--completion:${completionRate * 3.6}deg; --loss:${lossRate * 3.6}deg; --drift:${orbitOffset}px;">
             <span class="regional-loss-spark cancel"></span>
             <span class="regional-loss-spark abort"></span>
-            <strong>${IMSERV.fmt.pct(r.completion_rate)}</strong>
+            <strong>${EXL.fmt.pct(r.completion_rate)}</strong>
             <em>${r.region_code}</em>
           </div>
           <div class="regional-radar-copy">
@@ -455,9 +455,9 @@ function renderRegionalHeatmapLegacy(data) {
               <span class="rag ${r.rag}">${r.rag}</span>
             </div>
             <div class="regional-radar-metrics">
-              <span><b>${IMSERV.fmt.num(r.completions)}</b> executed successfully</span>
-              <span><b>${IMSERV.fmt.num(r.requests)}</b> appointments booked</span>
-              <span><b>${IMSERV.fmt.num(lossTotal)}</b> cancelled + aborted</span>
+              <span><b>${EXL.fmt.num(r.completions)}</b> executed successfully</span>
+              <span><b>${EXL.fmt.num(r.requests)}</b> appointments booked</span>
+              <span><b>${EXL.fmt.num(lossTotal)}</b> cancelled + aborted</span>
             </div>
           </div>
         </div>
@@ -486,7 +486,7 @@ function renderRegionalHeatmapLegacy(data) {
         <div style="display:flex; gap: 15px; align-items:center; margin-bottom: 20px; background: ${bgColor}; padding: 12px; border-radius: 8px;">
            <div style="flex:1;">
               <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Success Rate</div>
-              <div style="font-size:28px; font-weight:800; color:var(--text-primary); line-height:1.2;">${IMSERV.fmt.pct(r.completion_rate)}</div>
+              <div style="font-size:28px; font-weight:800; color:var(--text-primary); line-height:1.2;">${EXL.fmt.pct(r.completion_rate)}</div>
               <div style="height:6px; background:rgba(255,255,255,0.1); border-radius:3px; margin-top:8px; overflow:hidden;">
                  <div style="height:100%; width:${r.completion_rate}%; background:${borderColor}; border-radius:3px;"></div>
               </div>
@@ -496,19 +496,19 @@ function renderRegionalHeatmapLegacy(data) {
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
            <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border: 1px solid var(--border);">
               <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Appointments Booked</div>
-              <div style="font-size:15px; font-weight:700; color:var(--text-primary);">${IMSERV.fmt.num(r.requests)}</div>
+              <div style="font-size:15px; font-weight:700; color:var(--text-primary);">${EXL.fmt.num(r.requests)}</div>
            </div>
            <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border: 1px solid var(--border);">
               <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Executed Successfully</div>
-              <div style="font-size:15px; font-weight:700; color:var(--ok);">${IMSERV.fmt.num(r.completions)}</div>
+              <div style="font-size:15px; font-weight:700; color:var(--ok);">${EXL.fmt.num(r.completions)}</div>
            </div>
            <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border: 1px solid var(--border);">
               <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Cancelled (D-1)</div>
-              <div style="font-size:15px; font-weight:700; color:var(--crit);">${IMSERV.fmt.num(r.cancellations)}</div>
+              <div style="font-size:15px; font-weight:700; color:var(--crit);">${EXL.fmt.num(r.cancellations)}</div>
            </div>
            <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border: 1px solid var(--border);">
               <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Aborted On Day</div>
-              <div style="font-size:15px; font-weight:700; color:var(--warn);">${IMSERV.fmt.num(r.aborts)}</div>
+              <div style="font-size:15px; font-weight:700; color:var(--warn);">${EXL.fmt.num(r.aborts)}</div>
            </div>
         </div>
       </div>
@@ -733,7 +733,7 @@ async function renderRegionalHeatmap(data) {
             <div class="uk-network-card">
               <span>National Average</span>
               <strong>${Math.round(averageCompletion)}%</strong>
-              <em>${IMSERV.fmt.num(totalCompletions)} completed / ${IMSERV.fmt.num(totalDenominator)} ${metric === 'booked' ? 'booked' : 'requested'}</em>
+              <em>${EXL.fmt.num(totalCompletions)} completed / ${EXL.fmt.num(totalDenominator)} ${metric === 'booked' ? 'booked' : 'requested'}</em>
             </div>
             <div class="uk-map-tooltip" hidden></div>
           </div>
@@ -784,8 +784,8 @@ async function renderRegionalHeatmap(data) {
         </div>
         <div class="umt-divider"></div>
         <div class="umt-rows">
-          <div class="umt-row"><span class="umt-label">Completed</span><strong class="umt-val umt-val--completed">${IMSERV.fmt.num(completed)}</strong></div>
-          <div class="umt-row"><span class="umt-label">${denomLabel}</span><strong class="umt-val">${IMSERV.fmt.num(denominator)}</strong></div>
+          <div class="umt-row"><span class="umt-label">Completed</span><strong class="umt-val umt-val--completed">${EXL.fmt.num(completed)}</strong></div>
+          <div class="umt-row"><span class="umt-label">${denomLabel}</span><strong class="umt-val">${EXL.fmt.num(denominator)}</strong></div>
           <div class="umt-row umt-row--rate"><span class="umt-label">Success Rate</span><strong class="umt-val umt-val--rate">${Math.round(rate)}%</strong></div>
         </div>
       `;
@@ -817,7 +817,7 @@ function renderSupplierBehaviour(data) {
     return;
   }
 
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
 
   const segCfg = {
     'Scale and stable':  { cls: 'seg-scale', icon: '▲' },
@@ -933,7 +933,7 @@ async function loadDecompositionTree() {
   container.innerHTML = '<div class="loading"><span class="spinner"></span></div>';
 
   try {
-    const res = await fetch(`/api/journey/decomposition-tree${IMSERV.getGlobalQs()}`);
+    const res = await fetch(`/api/journey/decomposition-tree${EXL.getGlobalQs()}`);
     if (!res.ok) throw new Error('Failed to load decomposition tree');
     const data = await res.json();
     renderDecompositionTree(data, container);
@@ -946,7 +946,7 @@ async function loadDecompositionTree() {
 function renderDecompositionTree(data, container) {
   container.innerHTML = '';
 
-  const fmt = IMSERV.fmt.num;
+  const fmt = EXL.fmt.num;
   const pct = (v, d) => d > 0 ? Math.round(v / d * 100) + '%' : '—';
 
   // Funnel values — mirror the KPI cards exactly

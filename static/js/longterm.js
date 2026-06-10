@@ -1,4 +1,4 @@
-/* IMSERV — Long Term 12-Month Capacity & Demand Planning */
+/* EXL — Long Term 12-Month Capacity & Demand Planning */
 
 const LT = {
   data:          null,
@@ -26,7 +26,7 @@ async function loadLongTermPlanning(force) {
     'lt-slot-e-chart',
     'lt-detail-body',
   ];
-  IMSERV.setLoading(loadingTargets, true);
+  EXL.setLoading(loadingTargets, true);
 
   const strip = document.getElementById('lt-kpi-strip');
   if (strip) strip.innerHTML = '<div class="lt-loading"><span class="spinner"></span> Loading 12-month forecast…</div>';
@@ -39,12 +39,12 @@ async function loadLongTermPlanning(force) {
   } catch {
     if (strip) strip.innerHTML = '<div class="lt-error">Failed to load planning data.</div>';
   } finally {
-    IMSERV.setLoading(loadingTargets, false);
+    EXL.setLoading(loadingTargets, false);
   }
 }
 
 function ltSelectedRegions() {
-  const region = IMSERV.getRegion();
+  const region = EXL.getRegion();
   if (!region) return null;
   const map = {
     MID: ['WM', 'EM'],

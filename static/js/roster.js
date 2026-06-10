@@ -1,4 +1,4 @@
-/* IMSERV — 21-Day Roster Pivot Table (split-panel) */
+/* EXL — 21-Day Roster Pivot Table (split-panel) */
 
 const RT = { data: null, search: '', expandedRegions: new Set() };
 const SLOTS = ['morning', 'afternoon', 'evening'];
@@ -17,7 +17,7 @@ const RT_REGION_NAMES = {
 // ── Load ──────────────────────────────────────────────────────────────────────
 async function loadRosterTimeline(force) {
   if (RT.data && !force) { rtRender(); return; }
-  IMSERV.setLoading('#view-field-ops .pt-outer', true);
+  EXL.setLoading('#view-field-ops .pt-outer', true);
   const lb = document.getElementById('pt-lbody');
   if (lb) lb.innerHTML = '<tr><td colspan="5" class="loading" style="padding:40px;text-align:center"><span class="spinner"></span></td></tr>';
   try {
@@ -27,7 +27,7 @@ async function loadRosterTimeline(force) {
   } catch {
     if (lb) lb.innerHTML = '<tr><td colspan="5" style="padding:28px;text-align:center;color:var(--fe-red)">Failed to load roster data</td></tr>';
   } finally {
-    IMSERV.setLoading('#view-field-ops .pt-outer', false);
+    EXL.setLoading('#view-field-ops .pt-outer', false);
   }
 }
 
@@ -55,7 +55,7 @@ function rtEscapeAttr(value) {
 }
 
 function rtSelectedRegions() {
-  const region = IMSERV.getRegion();
+  const region = EXL.getRegion();
   if (!region) return null;
   const map = {
     MID: ['MID', 'WM', 'EM'],

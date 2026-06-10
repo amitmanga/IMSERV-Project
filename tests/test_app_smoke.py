@@ -28,7 +28,7 @@ class AppSmokeTests(unittest.TestCase):
         response = self.client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"IMSERV", response.data)
+        self.assertIn(b"EXL", response.data)
 
     def test_health_reports_required_data_available(self):
         response = self.client.get("/api/health")

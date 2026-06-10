@@ -1,4 +1,4 @@
-/* IMSERV — Module 2: Contact Centre Forecasting */
+/* EXL — Module 2: Contact Centre Forecasting */
 
 let _forecastChart = null;
 let _activeForecastTab = 'forecast';
@@ -8,8 +8,8 @@ let _forecastPlanningRates = { contactToVisitRate: 0, abandonRate: 0 };
 const _forecastTabLoadKeys = new Map();
 
 function getForecastTabLoadKey(tabName = _activeForecastTab) {
-  const region = IMSERV.getRegion();
-  const year = IMSERV.getYear();
+  const region = EXL.getRegion();
+  const year = EXL.getYear();
   const channel = tabName === 'forecast'
     ? (document.getElementById('forecast-channel-filter')?.value || '')
     : '';
@@ -21,10 +21,10 @@ function invalidateForecastLoadState() {
 }
 
 async function loadForecastingDashboard(force = false) {
-  const region = IMSERV.getRegion();
-  const planningQs = IMSERV.getGlobalQs({ year: 2025 });
+  const region = EXL.getRegion();
+  const planningQs = EXL.getGlobalQs({ year: 2025 });
   configureForecastPlanningCards();
-  IMSERV.setLoading([
+  EXL.setLoading([
     'forecast-chart',
     'model-accuracy-body',
     'model-comparison-chart',
@@ -32,9 +32,9 @@ async function loadForecastingDashboard(force = false) {
 
   try {
     const [planningKpis, kpis, funnel] = await Promise.all([
-      IMSERV.apiFetch('/api/forecasting/planning-target-kpis' + planningQs),
-      IMSERV.apiFetch('/api/forecasting/channel-kpis' + planningQs),
-      IMSERV.apiFetch('/api/forecasting/funnel' + planningQs),
+      EXL.apiFetch('/api/forecasting/planning-target-kpis' + planningQs),
+      EXL.apiFetch('/api/forecasting/channel-kpis' + planningQs),
+      EXL.apiFetch('/api/forecasting/funnel' + planningQs),
     ]);
 
     if (planningKpis) renderForecastPlanningKPIs(planningKpis);
@@ -42,7 +42,7 @@ async function loadForecastingDashboard(force = false) {
 
     await loadActiveForecastTabData(false, force);
   } finally {
-    IMSERV.setLoading([
+    EXL.setLoading([
       'forecast-chart',
       'model-accuracy-body',
       'model-comparison-chart',
@@ -77,7 +77,7 @@ function configureForecastPlanningCards() {
     `;
   });
 
-  IMSERV.hydrateIcons?.(document.getElementById('forecast-kpis') || document);
+  EXL.hydrateIcons?.(document.getElementById('forecast-kpis') || document);
 }
 
 function setForecastDelta(id, text, tone = 'neu') {
@@ -110,26 +110,26 @@ function renderForecastPlanningKPIs(kpis) {
   const falloutDelta = Number(kpis.fallout_rate_delta) || 0;
   const accuracyTone = accuracy > 85 ? 'pos' : (accuracy >= 75 ? 'neu' : 'neg');
   const accuracyCardTone = accuracy > 85 ? 'ok' : (accuracy >= 75 ? 'warn' : 'crit');
-  const signedNumber = (value) => `${value >= 0 ? '+' : ''}${IMSERV.fmt.num(value)}`;
+  const signedNumber = (value) => `${value >= 0 ? '+' : ''}${EXL.fmt.num(value)}`;
   const signedRateGap = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
 
-  setForecastKPI('fc-kpi-accuracy', IMSERV.fmt.pct(accuracy));
+  setForecastKPI('fc-kpi-accuracy', EXL.fmt.pct(accuracy));
   setForecastDelta('fc-kpi-accuracy-delta', `${dailyModel} MAPE ${dailyMape.toFixed(2)}%`, accuracyTone);
   setForecastCardTone('fc-kpi-accuracy', accuracyCardTone);
 
   const visitTone = visitDelta >= 0 ? 'pos' : (visitTarget && Math.abs(visitDelta) <= visitTarget * 0.05 ? 'neu' : 'neg');
   setForecastKPI('fc-kpi-visits', signedNumber(visitDelta));
-  setForecastDelta('fc-kpi-visits-delta', `${IMSERV.fmt.num(visits)} actual vs ${IMSERV.fmt.num(visitTarget)} target`, visitTone);
+  setForecastDelta('fc-kpi-visits-delta', `${EXL.fmt.num(visits)} actual vs ${EXL.fmt.num(visitTarget)} target`, visitTone);
   setForecastCardTone('fc-kpi-visits', visitTone === 'pos' ? 'ok' : (visitTone === 'neu' ? 'warn' : 'crit'));
 
   const successTone = successDelta >= 0 ? 'pos' : (successDelta >= -2 ? 'neu' : 'neg');
   setForecastKPI('fc-kpi-success', signedRateGap(successDelta));
-  setForecastDelta('fc-kpi-success-delta', `${IMSERV.fmt.pct(success)} actual vs ${IMSERV.fmt.pct(successTarget)} target`, successTone);
+  setForecastDelta('fc-kpi-success-delta', `${EXL.fmt.pct(success)} actual vs ${EXL.fmt.pct(successTarget)} target`, successTone);
   setForecastCardTone('fc-kpi-success', successTone === 'pos' ? 'ok' : (successTone === 'neu' ? 'warn' : 'crit'));
 
   const falloutTone = falloutDelta <= 0 ? 'pos' : (falloutDelta <= 2 ? 'neu' : 'neg');
   setForecastKPI('fc-kpi-fallout', signedRateGap(falloutDelta));
-  setForecastDelta('fc-kpi-fallout-delta', `${IMSERV.fmt.pct(fallout)} actual vs ${IMSERV.fmt.pct(falloutTarget)} target`, falloutTone);
+  setForecastDelta('fc-kpi-fallout-delta', `${EXL.fmt.pct(fallout)} actual vs ${EXL.fmt.pct(falloutTarget)} target`, falloutTone);
   setForecastCardTone('fc-kpi-fallout', falloutTone === 'pos' ? 'ok' : (falloutTone === 'neu' ? 'warn' : 'crit'));
 }
 
@@ -149,10 +149,10 @@ function renderForecastKPIs(data, forecastValues) {
   const visitRate = _forecastPlanningRates.contactToVisitRate;
   const projectedVisits = Math.round(forecastContacts * visitRate / 100);
 
-  setForecastKPI('fc-kpi-volume', IMSERV.fmt.num(forecastContacts));
-  setForecastKPI('fc-kpi-bookings', IMSERV.fmt.num(projectedVisits));
-  setForecastKPI('fc-kpi-conversion', IMSERV.fmt.pct(visitRate));
-  setForecastKPI('fc-kpi-abandon', IMSERV.fmt.pct(_forecastPlanningRates.abandonRate));
+  setForecastKPI('fc-kpi-volume', EXL.fmt.num(forecastContacts));
+  setForecastKPI('fc-kpi-bookings', EXL.fmt.num(projectedVisits));
+  setForecastKPI('fc-kpi-conversion', EXL.fmt.pct(visitRate));
+  setForecastKPI('fc-kpi-abandon', EXL.fmt.pct(_forecastPlanningRates.abandonRate));
 }
 
 function renderChannelBreakdown(kpis) {
@@ -162,8 +162,8 @@ function renderChannelBreakdown(kpis) {
   const ctx = document.getElementById('channel-breakdown-chart');
   if (ctx && channels.length) {
     const colours = ['#028178','#02C2B7','#03F4E8','#7FFFD4','#737373','#4A6B7C'];
-    IMSERV.destroyChart('channel-breakdown');
-    IMSERV.registerChart('channel-breakdown', new Chart(ctx, {
+    EXL.destroyChart('channel-breakdown');
+    EXL.registerChart('channel-breakdown', new Chart(ctx, {
       type: 'doughnut',
       data: {
         labels: channels.map(c => c.channel),
@@ -178,7 +178,7 @@ function renderChannelBreakdown(kpis) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          ...IMSERV.chartDefaults.plugins,
+          ...EXL.chartDefaults.plugins,
           legend: { position: 'right', labels: { color: '#4A6B7C', font: { size: 11 }, padding: 10 } },
         },
       },
@@ -191,10 +191,10 @@ function renderChannelBreakdown(kpis) {
     tbody.innerHTML = channels.map(c => `
       <tr>
         <td><strong>${c.channel}</strong></td>
-        <td>${IMSERV.fmt.num(c.volume)}</td>
-        <td>${IMSERV.fmt.num(c.bookings)}</td>
-        <td><strong class="text-ok">${IMSERV.fmt.pct(c.conversion_pct)}</strong></td>
-        <td><span class="text-warn">${IMSERV.fmt.pct(c.abandon_pct)}</span></td>
+        <td>${EXL.fmt.num(c.volume)}</td>
+        <td>${EXL.fmt.num(c.bookings)}</td>
+        <td><strong class="text-ok">${EXL.fmt.pct(c.conversion_pct)}</strong></td>
+        <td><span class="text-warn">${EXL.fmt.pct(c.abandon_pct)}</span></td>
       </tr>
     `).join('');
   }
@@ -202,11 +202,11 @@ function renderChannelBreakdown(kpis) {
 
 async function loadForecast() {
   const channel = document.getElementById('forecast-channel-filter')?.value || '';
-  const qs = IMSERV.getGlobalQs({ channel, weeks: 52 });
-  IMSERV.setLoading(['forecast-chart', 'model-accuracy-body', 'model-comparison-chart'], true);
+  const qs = EXL.getGlobalQs({ channel, weeks: 52 });
+  EXL.setLoading(['forecast-chart', 'model-accuracy-body', 'model-comparison-chart'], true);
 
   try {
-    const data = await IMSERV.apiFetch('/api/forecasting/forecast' + qs);
+    const data = await EXL.apiFetch('/api/forecasting/forecast' + qs);
     if (!data) return;
     _lastForecastData = data;
     _forecastTabLoadKeys.set('forecast', getForecastTabLoadKey('forecast'));
@@ -215,7 +215,7 @@ async function loadForecast() {
     renderModelAccuracy(data.model_accuracy || {});
     renderModelComparison(data);
   } finally {
-    IMSERV.setLoading(['forecast-chart', 'model-accuracy-body', 'model-comparison-chart'], false);
+    EXL.setLoading(['forecast-chart', 'model-accuracy-body', 'model-comparison-chart'], false);
   }
 }
 
@@ -227,10 +227,10 @@ function setForecastModel(model, el) {
 }
 
 function onForecastModelChange() {
-  IMSERV.setLoading('forecast-chart', true);
+  EXL.setLoading('forecast-chart', true);
   if (_lastForecastData) {
     renderForecastChart(_lastForecastData);
-    requestAnimationFrame(() => IMSERV.setLoading('forecast-chart', false));
+    requestAnimationFrame(() => EXL.setLoading('forecast-chart', false));
   } else {
     loadForecast();
   }
@@ -258,7 +258,7 @@ function updateForecastTitle(activeModel) {
   const modelLabel = activeModel ? activeModel : 'Ensemble P50';
   title.textContent = `52-Week Smart Meter Contact Attempt Forecast - 2026 ${modelLabel}`;
   title.removeAttribute('data-icon-ready');
-  IMSERV.hydrateIcons?.(title.parentElement || title);
+  EXL.hydrateIcons?.(title.parentElement || title);
 }
 
 function renderForecastChart(data) {
@@ -274,8 +274,8 @@ function renderForecastChart(data) {
     ? modelForecasts[activeModel].slice(0, data.labels.length)
     : data.p50;
   const centralLabel = activeModel ? `${activeModel} Contact Attempt Forecast` : 'P50 Contact Attempt Forecast';
-  const centralColor = activeModel ? (modelColors[activeModel] || IMSERV.colors.accent) : IMSERV.colors.accent;
-  const isLightTheme = IMSERV.getTheme?.() !== 'dark';
+  const centralColor = activeModel ? (modelColors[activeModel] || EXL.colors.accent) : EXL.colors.accent;
+  const isLightTheme = EXL.getTheme?.() !== 'dark';
   const bandBorderColor = isLightTheme ? 'rgba(178,128,0,0.72)' : 'rgba(244,210,90,0.5)';
   const bandFillColor = isLightTheme ? 'rgba(178,128,0,0.10)' : 'rgba(244,210,90,0.06)';
 
@@ -291,8 +291,8 @@ function renderForecastChart(data) {
     ? forecast2026.map(v => Math.round(v * 1.2))
     : (data.p90 || []).slice(0, horizon);
 
-  IMSERV.destroyChart?.('forecast');
-  IMSERV.registerChart('forecast', new Chart(ctx, {
+  EXL.destroyChart?.('forecast');
+  EXL.registerChart('forecast', new Chart(ctx, {
     type: 'line',
     data: {
       labels: weekLabels,
@@ -337,10 +337,10 @@ function renderForecastChart(data) {
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: IMSERV.chartDefaults.plugins,
+      plugins: EXL.chartDefaults.plugins,
       scales: {
-        ...IMSERV.chartDefaults.scales,
-        x: { ...IMSERV.chartDefaults.scales.x, ticks: { ...IMSERV.chartDefaults.scales.x.ticks, maxTicksLimit: 13 } },
+        ...EXL.chartDefaults.scales,
+        x: { ...EXL.chartDefaults.scales.x, ticks: { ...EXL.chartDefaults.scales.x.ticks, maxTicksLimit: 13 } },
       },
     },
   }));
@@ -422,17 +422,17 @@ function renderModelComparison(data) {
   const datasets = Object.entries(data.model_forecasts).map(([m, vals]) => ({
     label: m,
     data: vals.slice(0, 26),
-    borderColor: modelColors[m] || IMSERV.colors.accent,
+    borderColor: modelColors[m] || EXL.colors.accent,
     fill: false, tension: 0.4, pointRadius: 0, borderWidth: 1.5,
   }));
-  IMSERV.destroyChart('model-comparison');
-  IMSERV.registerChart('model-comparison', new Chart(ctx, {
+  EXL.destroyChart('model-comparison');
+  EXL.registerChart('model-comparison', new Chart(ctx, {
     type: 'line',
     data: { labels: data.labels.slice(0, 26), datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: IMSERV.chartDefaults.plugins,
-      scales: IMSERV.chartDefaults.scales,
+      plugins: EXL.chartDefaults.plugins,
+      scales: EXL.chartDefaults.scales,
     },
   }));
 }
@@ -440,16 +440,16 @@ function renderModelComparison(data) {
 
 
 async function loadConversionTrend() {
-  IMSERV.setLoading('conversion-trend-chart', true);
-  const funnel = await IMSERV.apiFetch('/api/forecasting/funnel' + IMSERV.getGlobalQs());
+  EXL.setLoading('conversion-trend-chart', true);
+  const funnel = await EXL.apiFetch('/api/forecasting/funnel' + EXL.getGlobalQs());
   if (!funnel) {
-    IMSERV.setLoading('conversion-trend-chart', false);
+    EXL.setLoading('conversion-trend-chart', false);
     return;
   }
 
   const ctx = document.getElementById('conversion-trend-chart');
   if (!ctx) {
-    IMSERV.setLoading('conversion-trend-chart', false);
+    EXL.setLoading('conversion-trend-chart', false);
     return;
   }
 
@@ -459,30 +459,30 @@ async function loadConversionTrend() {
   const cp = trend.map(t => t.completions);
   const cr = trend.map(t => t.completion_rate);
 
-  IMSERV.destroyChart('conversion-trend');
-  IMSERV.registerChart('conversion-trend', new Chart(ctx, {
+  EXL.destroyChart('conversion-trend');
+  EXL.registerChart('conversion-trend', new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
       datasets: [
         { label: 'Total Visits',           data: visits, backgroundColor: 'rgba(2,129,120,0.5)',  yAxisID: 'y' },
         { label: 'Executed Successfully',  data: cp,     backgroundColor: 'rgba(2,129,120,0.5)',yAxisID: 'y' },
-        { label: 'Success Rate %',         data: cr,     borderColor: IMSERV.colors.accent, type: 'line', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1' },
+        { label: 'Success Rate %',         data: cr,     borderColor: EXL.colors.accent, type: 'line', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1' },
       ],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: IMSERV.chartDefaults.plugins,
+      plugins: EXL.chartDefaults.plugins,
       scales: {
-        ...IMSERV.chartDefaults.scales,
-        y:  { ...IMSERV.chartDefaults.scales.y, position: 'left' },
-        y1: { ...IMSERV.chartDefaults.scales.y, position: 'right', grid: { display: false },
-               ticks: { ...IMSERV.chartDefaults.scales.y.ticks, callback: v => v + '%' } },
+        ...EXL.chartDefaults.scales,
+        y:  { ...EXL.chartDefaults.scales.y, position: 'left' },
+        y1: { ...EXL.chartDefaults.scales.y, position: 'right', grid: { display: false },
+               ticks: { ...EXL.chartDefaults.scales.y.ticks, callback: v => v + '%' } },
       },
     },
   }));
-  IMSERV.setLoading('conversion-trend-chart', false);
+  EXL.setLoading('conversion-trend-chart', false);
 }
 
 function switchForecastTab(name, el) {
@@ -521,12 +521,12 @@ function loadActiveForecastTabData(showLoading = true, force = false) {
 }
 
 async function loadForecastingOverview(showLoading = true) {
-  if (showLoading) IMSERV.setLoading('channel-breakdown-chart', true);
+  if (showLoading) EXL.setLoading('channel-breakdown-chart', true);
   try {
-    const kpis = await IMSERV.apiFetch('/api/forecasting/channel-kpis' + IMSERV.getGlobalQs());
+    const kpis = await EXL.apiFetch('/api/forecasting/channel-kpis' + EXL.getGlobalQs());
     if (kpis) renderChannelBreakdown(kpis);
     if (kpis) _forecastTabLoadKeys.set('overview', getForecastTabLoadKey('overview'));
   } finally {
-    if (showLoading) IMSERV.setLoading('channel-breakdown-chart', false);
+    if (showLoading) EXL.setLoading('channel-breakdown-chart', false);
   }
 }

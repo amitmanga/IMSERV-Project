@@ -1,4 +1,4 @@
-/* IMSERV — Single Meter View */
+/* EXL — Single Meter View */
 
 function loadMeterViewDashboard() {
   // No auto-load — waits for agent to enter MPXN
@@ -19,7 +19,7 @@ async function mvSearch() {
   const results = document.getElementById('mv-results');
   if (results) {
     results.style.display = 'block';
-    IMSERV.setLoading('mv-results', true, 'Searching meter...');
+    EXL.setLoading('mv-results', true, 'Searching meter...');
   }
 
   const btn = document.querySelector('.mv-search-btn');
@@ -39,7 +39,7 @@ async function mvSearch() {
     mvShowError('Failed to connect. Please try again.');
     if (results) results.style.display = 'none';
   } finally {
-    IMSERV.setLoading('mv-results', false);
+    EXL.setLoading('mv-results', false);
     if (btn) { btn.textContent = 'Search Meter'; btn.disabled = false; }
   }
 }

@@ -1,4 +1,4 @@
-/* IMSERV — Field Engineer Scorecard */
+/* EXL — Field Engineer Scorecard */
 
 const FE = {
   data:     null,
@@ -72,7 +72,7 @@ function feAggregate(eng) {
 // ── Load & render ─────────────────────────────────────────────────────────────
 async function loadFieldScorecard(force) {
   if (FE.data && !force) { feRender(); return; }
-  IMSERV.setLoading(['fe-kpi-strip', '.fe-table-wrap'], true);
+  EXL.setLoading(['fe-kpi-strip', '.fe-table-wrap'], true);
   try {
     const res = await fetch('/api/field-engineers');
     FE.data = await res.json();
@@ -82,7 +82,7 @@ async function loadFieldScorecard(force) {
     const tb = document.getElementById('fe-tbody');
     if (tb) tb.innerHTML = `<tr><td colspan="10" class="fe-err">Failed to load engineer data</td></tr>`;
   } finally {
-    IMSERV.setLoading(['fe-kpi-strip', '.fe-table-wrap'], false);
+    EXL.setLoading(['fe-kpi-strip', '.fe-table-wrap'], false);
   }
 }
 

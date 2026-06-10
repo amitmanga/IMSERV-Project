@@ -1,5 +1,5 @@
-/* IMSERV — Client-side configuration and shared utilities */
-const IMSERV = {
+/* EXL — Client-side configuration and shared utilities */
+const EXL = {
   version: '1.0.0',
   charts: {},   // registered Chart.js instances
   apiCache: new Map(),
@@ -217,17 +217,17 @@ const IMSERV = {
   priorityIcon: () => '',
 };
 
-window.IMSERV = IMSERV;
-IMSERV.applyChartTheme();
+window.EXL = EXL;
+EXL.applyChartTheme();
 
 // Apply initial theme icon
 (function () {
-  const t = localStorage.getItem('imserv-theme') || 'light';
+  const t = localStorage.getItem('exl-theme') || 'light';
   const icon = document.getElementById('theme-icon');
   if (icon) icon.textContent = t === 'dark' ? 'Dark' : 'Light';
 })();
 
-Object.assign(IMSERV, {
+Object.assign(EXL, {
   iconSvg(name) {
     const icons = {
       activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
@@ -354,12 +354,12 @@ Object.assign(IMSERV, {
   },
 });
 
-window.IMSERV = IMSERV;
+window.EXL = EXL;
 
 document.addEventListener('DOMContentLoaded', () => {
-  IMSERV.hydrateIcons();
+  EXL.hydrateIcons();
   const observer = new MutationObserver(() => {
-    window.requestAnimationFrame(() => IMSERV.hydrateIcons());
+    window.requestAnimationFrame(() => EXL.hydrateIcons());
   });
   observer.observe(document.body, { childList: true, subtree: true });
 });

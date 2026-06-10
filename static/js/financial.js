@@ -1,16 +1,16 @@
-/* IMSERV — Module 5: Financial Scenario Planning */
+/* EXL — Module 5: Financial Scenario Planning */
 
 async function loadFinancialDashboard() {
-  const region = IMSERV.getRegion();
-  const year   = IMSERV.getYear();
-  const qs     = IMSERV.getGlobalQs();
+  const region = EXL.getRegion();
+  const year   = EXL.getYear();
+  const qs     = EXL.getGlobalQs();
   const loadingTargets = ['fin-monthly-chart', 'fin-jobtype-chart', 'forecast-profit-chart'];
-  IMSERV.setLoading(loadingTargets, true);
+  EXL.setLoading(loadingTargets, true);
 
   try {
     const [kpis, forecast] = await Promise.all([
-      IMSERV.apiFetch('/api/financial/kpis' + qs),
-      IMSERV.apiFetch('/api/financial/forecast-profitability' + qs),
+      EXL.apiFetch('/api/financial/kpis' + qs),
+      EXL.apiFetch('/api/financial/forecast-profitability' + qs),
     ]);
 
     if (kpis)     renderFinancialKPIs(kpis);
@@ -19,7 +19,7 @@ async function loadFinancialDashboard() {
     if (kpis)     hydrateScenarioDefaults(kpis);
     if (forecast) renderForecastProfit(forecast);
   } finally {
-    IMSERV.setLoading(loadingTargets, false);
+    EXL.setLoading(loadingTargets, false);
   }
 }
 
@@ -47,11 +47,11 @@ function hydrateScenarioDefaults(kpis) {
 
 function renderFinancialKPIs(kpis) {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('fin-kpi-revenue',    IMSERV.fmt.gbpM(kpis.total_revenue_gbp));
-  set('fin-kpi-cost',       IMSERV.fmt.gbpM(kpis.total_cost_gbp));
-  set('fin-kpi-margin',     IMSERV.fmt.gbpM(kpis.total_margin_gbp));
-  set('fin-kpi-margin-pct', IMSERV.fmt.pct(kpis.margin_pct));
-  set('fin-kpi-cpp',        IMSERV.fmt.gbp(kpis.avg_cost_per_completion));
+  set('fin-kpi-revenue',    EXL.fmt.gbpM(kpis.total_revenue_gbp));
+  set('fin-kpi-cost',       EXL.fmt.gbpM(kpis.total_cost_gbp));
+  set('fin-kpi-margin',     EXL.fmt.gbpM(kpis.total_margin_gbp));
+  set('fin-kpi-margin-pct', EXL.fmt.pct(kpis.margin_pct));
+  set('fin-kpi-cpp',        EXL.fmt.gbp(kpis.avg_cost_per_completion));
 
   const mpCard = document.getElementById('fin-kpi-margin-pct')?.closest('.kpi-card');
   if (mpCard) {
@@ -63,26 +63,26 @@ function renderMonthlyChart(trend) {
   const ctx = document.getElementById('fin-monthly-chart');
   if (!ctx || !trend.length) return;
   const labels = trend.map(t => t.month.substring(0, 7));
-  IMSERV.destroyChart('fin-monthly');
-  IMSERV.registerChart('fin-monthly', new Chart(ctx, {
+  EXL.destroyChart('fin-monthly');
+  EXL.registerChart('fin-monthly', new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
       datasets: [
         { label: 'Meter Delivery Revenue GBP', data: trend.map(t => t.revenue),  backgroundColor: 'rgba(2,129,120,0.55)', yAxisID: 'y'  },
         { label: 'Meter Delivery Cost GBP',    data: trend.map(t => t.cost),     backgroundColor: 'rgba(251,130,129,0.45)', yAxisID: 'y'  },
-        { label: 'Margin %',   data: trend.map(t => t.margin_pct),borderColor: IMSERV.colors.accent, type: 'line', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1' },
+        { label: 'Margin %',   data: trend.map(t => t.margin_pct),borderColor: EXL.colors.accent, type: 'line', fill: false, tension: 0.4, pointRadius: 0, yAxisID: 'y1' },
       ],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: IMSERV.chartDefaults.plugins,
+      plugins: EXL.chartDefaults.plugins,
       scales: {
-        ...IMSERV.chartDefaults.scales,
-        y:  { ...IMSERV.chartDefaults.scales.y, ticks: { ...IMSERV.chartDefaults.scales.y.ticks, callback: v => '£' + (v/1000).toFixed(0) + 'k' } },
-        y1: { ...IMSERV.chartDefaults.scales.y, position: 'right', grid: { display: false },
-               ticks: { ...IMSERV.chartDefaults.scales.y.ticks, callback: v => v + '%' } },
+        ...EXL.chartDefaults.scales,
+        y:  { ...EXL.chartDefaults.scales.y, ticks: { ...EXL.chartDefaults.scales.y.ticks, callback: v => '£' + (v/1000).toFixed(0) + 'k' } },
+        y1: { ...EXL.chartDefaults.scales.y, position: 'right', grid: { display: false },
+               ticks: { ...EXL.chartDefaults.scales.y.ticks, callback: v => v + '%' } },
       },
     },
   }));
@@ -92,8 +92,8 @@ function renderJobTypeChart(breakdown) {
   const ctx = document.getElementById('fin-jobtype-chart');
   if (!ctx || !breakdown.length) return;
   const labels = breakdown.map(j => j.job_type.replace('_', ' '));
-  IMSERV.destroyChart('fin-jobtype');
-  IMSERV.registerChart('fin-jobtype', new Chart(ctx, {
+  EXL.destroyChart('fin-jobtype');
+  EXL.registerChart('fin-jobtype', new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
@@ -105,8 +105,8 @@ function renderJobTypeChart(breakdown) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: IMSERV.chartDefaults.plugins,
-      scales: { ...IMSERV.chartDefaults.scales },
+      plugins: EXL.chartDefaults.plugins,
+      scales: { ...EXL.chartDefaults.scales },
     },
   }));
 }
@@ -124,26 +124,26 @@ function renderForecastProfit(data) {
   const y1Min = Math.floor((marginMin - pad) * 10) / 10;
   const y1Max = Math.ceil((marginMax  + pad) * 10) / 10;
 
-  IMSERV.destroyChart('forecast-profit');
-  IMSERV.registerChart('forecast-profit', new Chart(ctx, {
+  EXL.destroyChart('forecast-profit');
+  EXL.registerChart('forecast-profit', new Chart(ctx, {
     type: 'line',
     data: {
       labels: mf.map(m => m.month),
       datasets: [
-        { label: 'Forecast Revenue GBP', data: mf.map(m => m.revenue), borderColor: IMSERV.colors.ok,      fill: false, tension: 0.4, pointRadius: 0, borderDash: [5,3] },
-        { label: 'Forecast Cost GBP',    data: mf.map(m => m.cost),    borderColor: IMSERV.colors.crit,    fill: false, tension: 0.4, pointRadius: 0, borderDash: [5,3] },
-        { label: 'Forecast Margin %',   data: mf.map(m => m.margin_pct), borderColor: IMSERV.colors.accent, fill: false, tension: 0.4, pointRadius: 3, yAxisID: 'y1' },
+        { label: 'Forecast Revenue GBP', data: mf.map(m => m.revenue), borderColor: EXL.colors.ok,      fill: false, tension: 0.4, pointRadius: 0, borderDash: [5,3] },
+        { label: 'Forecast Cost GBP',    data: mf.map(m => m.cost),    borderColor: EXL.colors.crit,    fill: false, tension: 0.4, pointRadius: 0, borderDash: [5,3] },
+        { label: 'Forecast Margin %',   data: mf.map(m => m.margin_pct), borderColor: EXL.colors.accent, fill: false, tension: 0.4, pointRadius: 3, yAxisID: 'y1' },
       ],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { ...IMSERV.chartDefaults.plugins },
+      plugins: { ...EXL.chartDefaults.plugins },
       scales: {
-        ...IMSERV.chartDefaults.scales,
-        y:  { ...IMSERV.chartDefaults.scales.y, ticks: { ...IMSERV.chartDefaults.scales.y.ticks, callback: v => '£' + (v/1000).toFixed(0) + 'k' } },
-        y1: { ...IMSERV.chartDefaults.scales.y, position: 'right', grid: { display: false },
+        ...EXL.chartDefaults.scales,
+        y:  { ...EXL.chartDefaults.scales.y, ticks: { ...EXL.chartDefaults.scales.y.ticks, callback: v => '£' + (v/1000).toFixed(0) + 'k' } },
+        y1: { ...EXL.chartDefaults.scales.y, position: 'right', grid: { display: false },
               min: y1Min, max: y1Max,
-              ticks: { ...IMSERV.chartDefaults.scales.y.ticks, callback: v => v.toFixed(1) + '%' } },
+              ticks: { ...EXL.chartDefaults.scales.y.ticks, callback: v => v.toFixed(1) + '%' } },
       },
     },
   }));
@@ -166,12 +166,12 @@ async function runScenario() {
     cost_uplift_pct:        parseFloat(document.getElementById('sc-cost-uplift')?.value || 0),
     engineer_count:         parseInt(document.getElementById('sc-engineers')?.value || 300),
     productivity_jobs_per_day: 4.0,
-    region_code: IMSERV.getRegion() || null,
+    region_code: EXL.getRegion() || null,
   };
 
   const panel = document.getElementById('scenario-results');
   if (panel) panel.style.display = 'block';
-  IMSERV.setLoading('waterfall-chart', true);
+  EXL.setLoading('waterfall-chart', true);
 
   try {
     const resp = await fetch('/api/financial/scenario', {
@@ -184,7 +184,7 @@ async function runScenario() {
     const data = await resp.json();
     renderScenarioResults(data);
   } finally {
-    IMSERV.setLoading('waterfall-chart', false);
+    EXL.setLoading('waterfall-chart', false);
   }
 }
 
@@ -197,13 +197,13 @@ function renderScenarioResults(data) {
   if (title) {
     title.removeAttribute('data-icon-ready');
     title.textContent = `Appointment Scenario: ${data.scenario_name}`;
-    IMSERV.hydrateIcons(title.parentElement || document);
+    EXL.hydrateIcons(title.parentElement || document);
   }
-  set('sc-res-revenue',    IMSERV.fmt.gbpM(data.revenue_gbp));
-  set('sc-res-cost',       IMSERV.fmt.gbpM(data.total_cost_gbp));
-  set('sc-res-margin',     IMSERV.fmt.gbpM(data.margin_gbp));
-  set('sc-res-margin-pct', IMSERV.fmt.pct(data.margin_pct));
-  set('sc-res-cpp',        IMSERV.fmt.gbp(data.cost_per_completion));
+  set('sc-res-revenue',    EXL.fmt.gbpM(data.revenue_gbp));
+  set('sc-res-cost',       EXL.fmt.gbpM(data.total_cost_gbp));
+  set('sc-res-margin',     EXL.fmt.gbpM(data.margin_gbp));
+  set('sc-res-margin-pct', EXL.fmt.pct(data.margin_pct));
+  set('sc-res-cpp',        EXL.fmt.gbp(data.cost_per_completion));
   set('sc-res-capacity',   data.capacity_rag);
 
   // Pricing & Cost Assumptions
@@ -214,8 +214,8 @@ function renderScenarioResults(data) {
   if (ctx && data.waterfall) {
     const wf = data.waterfall;
     const colors = wf.map(b => b.type === 'base' ? 'rgba(2,129,120,0.7)' : (b.type === 'cost' ? 'rgba(251,130,129,0.65)' : (b.value >= 0 ? 'rgba(2,129,120,0.65)' : 'rgba(251,130,129,0.5)')));
-    IMSERV.destroyChart('waterfall');
-    IMSERV.registerChart('waterfall', new Chart(ctx, {
+    EXL.destroyChart('waterfall');
+    EXL.registerChart('waterfall', new Chart(ctx, {
       type: 'bar',
       data: {
         labels: wf.map(b => b.label),
@@ -223,10 +223,10 @@ function renderScenarioResults(data) {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { ...IMSERV.chartDefaults.plugins, legend: { display: false } },
+        plugins: { ...EXL.chartDefaults.plugins, legend: { display: false } },
         scales: {
-          ...IMSERV.chartDefaults.scales,
-          y: { ...IMSERV.chartDefaults.scales.y, ticks: { ...IMSERV.chartDefaults.scales.y.ticks, callback: v => '£' + (v/1000).toFixed(0) + 'k' } },
+          ...EXL.chartDefaults.scales,
+          y: { ...EXL.chartDefaults.scales.y, ticks: { ...EXL.chartDefaults.scales.y.ticks, callback: v => '£' + (v/1000).toFixed(0) + 'k' } },
         },
       },
     }));
@@ -238,7 +238,7 @@ function renderScenarioAssumptions(data) {
   if (!panel || !data.job_type_contributions) return;
   panel.style.display = 'block';
 
-  const fmt   = IMSERV.fmt;
+  const fmt   = EXL.fmt;
   const contribs = data.job_type_contributions;
   const assumptions = data.assumptions || {};
 
