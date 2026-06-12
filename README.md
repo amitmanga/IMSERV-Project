@@ -1,65 +1,112 @@
 # IMSERV Smart Meter Field Planning & Utility Operations Platform
 
-Enterprise-grade utility operations planning platform for IMSERV — extended from the DAA-Project architecture.
+IMSERV is a Flask-based operations planning platform for smart meter appointment delivery. It brings appointment funnel performance, dialler outcomes, cancellation risk, engineer capacity, meter history, and financial scenario planning into one browser-based dashboard.
+
+The app is designed for operational leaders, planning teams, field managers, and customer support teams who need a shared view of demand, capacity, appointment fallout, and commercial impact.
 
 ---
 
-## Architecture Overview
+## Demo Video
 
-| Layer       | Technology                                           |
-|-------------|------------------------------------------------------|
-| Backend     | Flask 3 (Python), Gunicorn                          |
-| Frontend    | Vanilla ES6+, Chart.js 4.4, SPA architecture        |
-| Analytics   | Python (pandas, scikit-learn, statsmodels)           |
-| Data Store  | File-based CSV/JSON (PostgreSQL schema included)     |
-| Deployment  | Render.com / Docker                                  |
+<video src="demo/IMSERV_app_demo_3min.webm" controls poster="demo/IMSERV_app_demo_3min_preview.png" width="100%">
+  Watch the 3-minute IMSERV app demo: demo/IMSERV_app_demo_3min.webm
+</video>
 
-Inherits the DAA-Project pattern: flat Flask monolith with modular Python engine layer, dark glassmorphism design system, Chart.js dashboards, and file-based lazy-loaded data.
+[Open the 3-minute demo video](demo/IMSERV_app_demo_3min.webm)
 
 ---
 
-## Modules
+## Key Capabilities
 
-| # | Module                          | Description                                                  |
-|---|---------------------------------|--------------------------------------------------------------|
-| 1 | Bookings to Completions Journey | Executive funnel KPIs, regional heatmap, AI recommendations  |
-| 2 | Contact Centre Forecasting      | Prophet/ARIMA/XGBoost/LightGBM multi-model ensemble          |
-| 3 | Cancellations & Aborts          | Pareto root cause, trend, AI risk prediction, rebooking      |
-| 4 | Field Operations & Engineering  | Patch planning, utilisation matrix, understaffing forecast    |
-| 5 | Financial Scenario Planning     | Interactive P&L simulator, waterfall charts, 2026 forecast   |
+- Appointment journey analytics from customer job requests through to successful completion.
+- Dialler performance views for booking conversion, contact outcomes, best call windows, and business-category behaviour.
+- Cancellation and same-day abort analysis with root-cause breakdowns and recovery signals.
+- Short-term engineer roster planning across regions, days, and appointment slots.
+- Long-term demand, capacity, utilisation, and demand-gap forecasting.
+- Single meter lookup for before-call context, including meter details, MOP/DC status, visit history, and dialler contacts.
+- Financial scenario modelling for revenue, cost, margin, capacity status, and cost per executed appointment.
+- AI-assisted operational summaries and recommendations through a server-side chatbot proxy.
+
+---
+
+## Architecture
+
+| Layer | Technology |
+|---|---|
+| Backend | Flask 3, Python |
+| Frontend | Vanilla JavaScript, HTML, CSS, Chart.js |
+| Analytics | Python engine modules |
+| Data Store | CSV/JSON inputs with optional SQLite build support |
+| Deployment | Docker, Gunicorn, Render.com |
+
+The application uses a Flask monolith for API routes, modular Python files for analytics logic, and a single-page frontend served from `templates/index.html` with feature-specific JavaScript modules in `static/js`.
+
+---
+
+## Application Modules
+
+| Module | Purpose |
+|---|---|
+| Appointment Journey | Tracks job requests, dialler loads, contacts, bookings, D-1 cancellations, same-day aborts, completions, supplier performance, and regional success. |
+| Dialler Performance | Analyses booking conversion, executed jobs, business categories, contact windows, channel booking, and dialler outcomes. |
+| Risk & Recovery | Breaks down cancellation and abort reasons, recovery trends, regional risk, and rebooking performance. |
+| Resource Planning | Shows short-term engineer-slot utilisation and long-term demand versus capacity forecasts. |
+| Single Meter View | Looks up an MPXN and displays meter, supplier, MOP, DC, visit, and dialler contact history. |
+| Scenario Impact | Simulates appointment volume, success rate, cancellation rate, cost, revenue, engineer count, and margin outcomes. |
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Clone and enter project
-cd IMSERV-Project
-
-# 2. Install Python dependencies
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# 3. Generate synthetic datasets (auto-runs on first startup)
+# 2. Generate or refresh local datasets when needed
 python engine/data_generator.py
 
-# 4. Start the platform
+# 3. Start the application
 python app.py
-# → http://localhost:5000
 ```
+
+Open the app at:
+
+```text
+http://localhost:5000
+```
+
+On startup, the app checks whether the local CSV data is aligned to the current rolling reporting window and prepares data automatically when configured to do so.
 
 ---
 
+## Configuration
+
+Create a `.env` file from `.env.example` and adjust values as needed.
+
+Common settings:
+
+```bash
+SECRET_KEY=change-me
+PORT=5000
+ENABLE_DATABASE=false
+AUTO_GENERATE_DATA=true
+```
+
 ### Hugging Face Chatbot
 
-The floating app assistant uses a Flask proxy so the Hugging Face token stays server-side. Set these variables in `.env`:
+The floating app assistant uses a Flask proxy so the Hugging Face token stays server-side.
 
 ```bash
 HF_TOKEN=hf_or_provider_key
 HF_CHAT_PROVIDER=novita
 HF_CHAT_MODEL=google/gemma-4-31B-it
 HF_CHAT_BASE_URL=https://router.huggingface.co/v1
-# or point directly at a dedicated endpoint:
-# HF_CHAT_ENDPOINT=https://your-endpoint.endpoints.huggingface.cloud/v1/chat/completions
+```
+
+You can also point the chatbot at a dedicated endpoint:
+
+```bash
+HF_CHAT_ENDPOINT=https://your-endpoint.endpoints.huggingface.cloud/v1/chat/completions
 ```
 
 ---
@@ -68,170 +115,228 @@ HF_CHAT_BASE_URL=https://router.huggingface.co/v1
 
 ```bash
 docker-compose up --build
-# Platform: http://localhost:5000
-# PostgreSQL: localhost:5432
+```
+
+Services:
+
+```text
+Application: http://localhost:5000
+PostgreSQL: localhost:5432
 ```
 
 ---
 
-## Render.com Deployment
+## Render Deployment
 
-1. Create a new **Web Service** in Render
-2. Connect this repository
-3. Build command: `pip install -r requirements.txt`
-4. Start command: `gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 app:app`
-5. Environment variable: `SECRET_KEY` (auto-generated)
-6. Add `HF_TOKEN` in Render as a secret environment variable. The blueprint includes the non-secret chatbot defaults:
-   - `HF_CHAT_PROVIDER=novita`
-   - `HF_CHAT_MODEL=google/gemma-4-31B-it`
-   - `HF_CHAT_BASE_URL=https://router.huggingface.co/v1`
+1. Create a new Render Web Service.
+2. Connect this repository.
+3. Use `pip install -r requirements.txt` as the build command.
+4. Use the following start command:
 
-The Render config is tuned for 512MB instances: data loads lazily, large CSVs are not cached by default, and dataset generation is disabled at runtime unless explicitly enabled.
+```bash
+gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 app:app
+```
 
-The `render.yaml` file handles all non-secret configuration automatically. Keep `HF_TOKEN` only in Render's environment settings.
+5. Add `SECRET_KEY` and any required chatbot secrets in Render environment variables.
+
+The included `render.yaml` contains the non-secret deployment settings. Keep `HF_TOKEN` and other secrets in Render environment settings only.
 
 ---
 
 ## Project Structure
 
-```
+```text
 IMSERV-Project/
-├── app.py                      # Flask application — all API routes
-├── requirements.txt
-├── render.yaml                 # Render.com deployment config
-├── Dockerfile
-├── docker-compose.yml
-│
-├── engine/                     # Analytics engines (modular Python)
-│   ├── data_generator.py       # Synthetic dataset generator
-│   ├── ingestion.py            # Data loading + lazy cache
-│   ├── forecasting_engine.py   # Contact centre forecasting (Prophet/ARIMA/XGBoost/LightGBM)
-│   ├── cancellation_engine.py  # Cancellation analysis + AI prediction
-│   ├── field_ops_engine.py     # Engineer planning + optimisation
-│   ├── financial_engine.py     # Financial scenario simulation
-│   └── ai_recommendations.py  # Cross-module AI recommendation engine
-│
-├── static/
-│   ├── css/style.css           # Dark glassmorphism design system
-│   └── js/
-│       ├── app.js              # SPA controller
-│       ├── config.js           # Chart.js config + utilities
-│       ├── theme.js            # Dark/light mode toggle
-│       ├── dashboard.js        # Module 1: Journey dashboard
-│       ├── forecasting.js      # Module 2: CC forecasting
-│       ├── cancellations.js    # Module 3: Cancellations
-│       ├── field_ops.js        # Module 4: Field operations
-│       └── financial.js        # Module 5: Financial scenarios
-│
-├── templates/index.html        # Single-page application template
-│
-├── data/
-│   ├── inputs/                 # CSV datasets (auto-generated)
-│   │   ├── master_operations.csv     # Source-of-truth job ledger
-│   │   ├── channel_volume.csv        # Daily channel aggregation from master
-│   │   ├── booking_journey.csv       # Weekly funnel aggregation from master
-│   │   ├── engineers.csv             # Engineer dimension
-│   │   ├── engineer_availability.csv # Engineer-day capacity and completed jobs
-│   │   ├── financial_data.csv        # Monthly P&L aggregation from master
-│   │   └── capacity_demand.csv       # Weekly patch demand joined to capacity
-│   └── outputs/                # Generated analytics cache
-│
-└── deployment/
-    └── schema.sql              # PostgreSQL schema for persistent storage
+|-- app.py                         # Flask application and API routes
+|-- requirements.txt               # Python runtime dependencies
+|-- render.yaml                    # Render deployment configuration
+|-- Dockerfile
+|-- docker-compose.yml
+|-- demo/
+|   |-- IMSERV_app_demo_3min.webm
+|   |-- IMSERV_app_demo_3min_preview.png
+|-- scripts/
+|   |-- create_demo_video.py       # Playwright-based demo video recorder
+|   |-- build_sqlite_store.py
+|   |-- refresh_data.py
+|-- engine/
+|   |-- data_generator.py          # Synthetic data generation
+|   |-- ingestion.py               # Data loading and cache helpers
+|   |-- forecasting_engine.py      # Forecasting logic
+|   |-- cancellation_engine.py     # Cancellation and abort analytics
+|   |-- field_ops_engine.py        # Capacity and field operations planning
+|   |-- financial_engine.py        # Financial scenario modelling
+|   |-- ai_recommendations.py      # Operational recommendation logic
+|-- static/
+|   |-- css/style.css
+|   |-- img/exl_service_logo.svg
+|   |-- js/                        # Frontend modules
+|-- templates/
+|   |-- index.html                 # Single-page application shell
+|-- data/
+|   |-- inputs/                    # CSV input datasets
+|-- deployment/
+|   |-- schema.sql                 # Optional PostgreSQL schema
+|-- tests/
 ```
 
 ---
 
-## API Reference
+## Data
 
-### Journey (Module 1)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/journey/kpis` | GET | Funnel KPIs: requests→completions |
-| `/api/journey/weekly-trend` | GET | Weekly completion/cancellation trend |
-| `/api/journey/regional-heatmap` | GET | Regional completion rate RAG |
+The app uses local CSV files under `data/inputs` for appointment, engineer, financial, supplier, and capacity datasets.
 
-### Contact Centre Forecasting (Module 2)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/forecasting/channel-kpis` | GET | Channel volume and conversion KPIs |
-| `/api/forecasting/forecast` | GET | 26-week multi-model forecast with P10/P50/P90 |
-| `/api/forecasting/funnel` | GET | Booking conversion funnel |
+Important input files include:
 
-### Cancellations (Module 3)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/cancellations/kpis` | GET | Cancellation/abort KPIs |
-| `/api/cancellations/root-causes` | GET | Pareto root cause analysis |
-| `/api/cancellations/trends` | GET | Monthly trend + 6-month forecast |
-| `/api/cancellations/heatmap` | GET | Regional RAG comparison |
-| `/api/cancellations/predict` | GET | AI risk score + recommendations |
-| `/api/cancellations/rebooking` | GET | Rebooking rate analytics |
+| File | Purpose |
+|---|---|
+| `master_operations.csv` | Source operational job ledger. |
+| `booking_journey.csv` | Aggregated appointment journey funnel data. |
+| `channel_volume.csv` | Daily dialler and channel volume data. |
+| `capacity_demand.csv` | Demand and capacity planning data. |
+| `engineers.csv` | Engineer dimension data. |
+| `engineer_availability.csv` | Engineer-day availability and completed jobs. |
+| `field_engineers.csv` | Field engineer planning data. |
+| `financial_data.csv` | Revenue, cost, and margin inputs. |
+| `suppliers.csv` | Supplier reference data. |
 
-### Field Operations (Module 4)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/field-ops/kpis` | GET | Engineer utilisation KPIs |
-| `/api/field-ops/capacity-matrix` | GET | Regional capacity vs demand |
-| `/api/field-ops/patch-plan` | GET | Patch-level utilisation |
-| `/api/field-ops/engineer-performance` | GET | Top 20 engineer performance |
-| `/api/field-ops/understaffing-forecast` | GET | 8-week understaffing prediction |
-| `/api/field-ops/optimise` | GET | Workforce rebalancing recommendations |
+Regenerate synthetic datasets with:
 
-### Financial (Module 5)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/financial/kpis` | GET | Revenue, cost, margin KPIs |
-| `/api/financial/scenario` | POST | Run named P&L scenario |
-| `/api/financial/compare-scenarios` | POST | Compare multiple scenarios |
-| `/api/financial/forecast-profitability` | GET | 2026 P&L forecast |
-
-### System
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Health check + data status |
-| `/api/regions` | GET | Region reference list |
-| `/api/data/reload` | GET | Force reload all data caches |
-| `/api/data/generate` | GET | Regenerate synthetic datasets |
-| `/api/ai/recommendations` | GET | Cross-module AI insights |
-| `/api/ai/summary` | GET | Natural language health summary |
-
-### Query Parameters (most endpoints)
-- `region` — filter by region code (NW, NE, MID, SE, SW, WAL, SCO, YRK)
-- `year` — 2025 (default: 2025)
+```bash
+python engine/data_generator.py
+```
 
 ---
 
-## Datasets
+## API Overview
 
-All datasets cover **2025 actuals** + **2026 forecasts** with:
-- Regional seasonality (8 UK regions)
-- Operational anomalies and realistic noise
-- Cancellation behaviour by region and reason
-- Engineer workforce constraints and absence patterns
-- Capacity bottlenecks in high-demand weeks
+### Appointment Journey
 
-Regenerate with: `python engine/data_generator.py`
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/journey/dashboard` | GET | Combined journey dashboard payload. |
+| `/api/journey/kpis` | GET | Funnel KPI metrics. |
+| `/api/journey/weekly-trend` | GET | Weekly completion, cancellation, and abort trend. |
+| `/api/journey/suppliers` | GET | Supplier performance data. |
+| `/api/journey/regional-heatmap` | GET | Regional success-rate comparison. |
+| `/api/journey/decomposition-tree` | GET | Journey decomposition data. |
+
+### Dialler Performance
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/timeslot/dashboard` | GET | Dialler performance dashboard payload. |
+| `/api/timeslot/channel-booking` | GET | Channel booking analytics. |
+| `/api/timeslot/business-type` | GET | Business-type booking and success view. |
+| `/api/timeslot/attempts-overview` | GET | Attempt-level performance summary. |
+| `/api/timeslot/agent-view` | GET | Agent-level dialler view. |
+| `/api/timeslot/dialler-outcome` | GET | Dialler outcome analysis. |
+
+### Risk & Recovery
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/cancellations/dashboard` | GET | Combined cancellation and abort dashboard payload. |
+| `/api/cancellations/kpis` | GET | Cancellation and abort KPIs. |
+| `/api/cancellations/root-causes` | GET | Root-cause breakdown. |
+| `/api/cancellations/trends` | GET | Cancellation trend analytics. |
+| `/api/cancellations/heatmap` | GET | Regional cancellation comparison. |
+| `/api/cancellations/predict` | GET | Risk scoring and recommendations. |
+| `/api/cancellations/rebooking` | GET | Rebooking analytics. |
+
+### Resource Planning
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/roster/timeline` | GET | Short-term engineer roster timeline. |
+| `/api/longterm/overview` | GET | Long-term demand and capacity overview. |
+| `/api/field-ops/kpis` | GET | Field operations KPIs. |
+| `/api/field-ops/capacity-matrix` | GET | Regional capacity matrix. |
+| `/api/field-ops/patch-plan` | GET | Patch-level plan data. |
+| `/api/field-ops/engineer-performance` | GET | Engineer performance ranking. |
+| `/api/field-ops/capacity-forecast` | GET | Capacity forecast payload. |
+| `/api/field-ops/optimise` | GET | Workforce optimisation recommendations. |
+
+### Meter View
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/meter-view` | GET | Meter history and operational context for an MPXN. |
+
+### Financial Planning
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/financial/kpis` | GET | Financial KPI summary. |
+| `/api/financial/scenario` | POST | Run a financial scenario. |
+| `/api/financial/compare-scenarios` | POST | Compare multiple scenarios. |
+| `/api/financial/forecast-profitability` | GET | Profitability forecast. |
+
+### AI and System
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/ai/recommendations` | GET | Cross-module recommendations. |
+| `/api/ai/summary` | GET | Natural-language operational summary. |
+| `/api/ai/dashboard` | GET | Dashboard recommendation payload. |
+| `/api/chatbot/message` | POST | Chatbot message proxy. |
+| `/api/chatbot/config` | GET | Chatbot configuration status. |
+| `/api/health` | GET | Health check and data status. |
+| `/api/data/status` | GET | Rolling data-window status. |
+| `/api/data/reload` | GET | Reload data caches. |
+| `/api/data/generate` | GET | Regenerate data. |
+| `/api/data/store-status` | GET | Data store status. |
+| `/api/data/actual-window` | GET | Current actuals window. |
+| `/api/regions` | GET | Region reference list. |
+| `/api/filters` | GET | Filter values for the frontend. |
+
+Common query parameters:
+
+| Parameter | Description |
+|---|---|
+| `region` | Region code such as `NW`, `NE`, `MID`, `SE`, `SW`, `WAL`, `SCO`, or `YRK`. |
+| `year` | Reporting or forecast year, depending on endpoint. |
+| `month` | Optional month filter where supported. |
 
 ---
 
-## PostgreSQL Extension
+## Testing
 
-For production persistence, the full normalised schema is in `deployment/schema.sql`.
-Enable with `ENABLE_DATABASE=true` and `DATABASE_URL=postgresql://...` in `.env`.
+Run the smoke tests with:
+
+```bash
+pytest
+```
 
 ---
 
-## Integration with DAA-Project
+## Demo Video Generation
 
-This platform is designed as a **natural evolution** of DAA-Project:
-- Same Flask + Vanilla JS SPA architecture
-- Same dark glassmorphism CSS design system (`--navy`, `--accent`, `--ok`, `--warn`, `--crit`)
-- Same Chart.js 4.4 visualisation patterns
-- Same three-tier planning philosophy (strategic / tactical / operational)
-- Same lazy-loading data cache pattern
-- Same modular Python engine architecture
-- Same Render.com deployment approach
-- Gunicorn WSGI server production setup
+The demo video can be regenerated with:
 
-DAA modules can be registered as Flask blueprints and mounted under `/api/daa/`.
+```bash
+python scripts/create_demo_video.py
+```
+
+The recorder expects the app to be available at `http://127.0.0.1:5000` and writes the output to:
+
+```text
+demo/IMSERV_app_demo_3min.webm
+```
+
+---
+
+## Optional PostgreSQL Schema
+
+For production persistence, the normalised schema is available in:
+
+```text
+deployment/schema.sql
+```
+
+Set the relevant environment variables before enabling database-backed behaviour:
+
+```bash
+ENABLE_DATABASE=true
+DATABASE_URL=postgresql://user:password@host:5432/database
+```
