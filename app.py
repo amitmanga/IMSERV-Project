@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from datetime import date, datetime, timedelta
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -194,93 +194,18 @@ def _chatbot_context(region: str | None, year: int, view: str | None) -> str:
     return "\n".join(lines)[:5000]
 
 def _huggingface_chat(messages: list[dict]) -> str:
-    token = (
-        os.getenv("HF_TOKEN")
-        or os.getenv("HF_API_KEY")
-        or os.getenv("HUGGINGFACE_API_TOKEN")
-        or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+    """Delegate chatbot completion to unified OpenRouter / Hugging Face client."""
+    from engine.llm_client import call_chat_completion
+    result = call_chat_completion(
+        messages,
+        timeout=float(os.getenv("HF_CHAT_TIMEOUT_SECONDS", "45")),
+        max_tokens=int(os.getenv("HF_CHAT_MAX_TOKENS", "450")),
+        temperature=float(os.getenv("HF_CHAT_TEMPERATURE", "0.35")),
     )
-    if not token:
-        raise RuntimeError("Missing HF_TOKEN, HF_API_KEY, or HUGGINGFACE_API_TOKEN on the Flask server.")
-
-    base_url = os.getenv("HF_CHAT_BASE_URL") or os.getenv("HUGGINGFACE_CHAT_BASE_URL") or "https://router.huggingface.co/v1"
-    endpoint = os.getenv("HF_CHAT_ENDPOINT") or os.getenv("HUGGINGFACE_CHAT_ENDPOINT") or f"{base_url.rstrip('/')}/chat/completions"
-    provider = os.getenv("HF_CHAT_PROVIDER") or os.getenv("HUGGINGFACE_CHAT_PROVIDER")
-    if not provider and token.startswith("sk_"):
-        provider = "novita"
-    model = os.getenv("HF_CHAT_MODEL") or os.getenv("HUGGINGFACE_CHAT_MODEL") or "google/gemma-4-31B-it"
-    timeout = float(os.getenv("HF_CHAT_TIMEOUT_SECONDS", "45"))
-    max_tokens = int(os.getenv("HF_CHAT_MAX_TOKENS", "450"))
-    temperature = float(os.getenv("HF_CHAT_TEMPERATURE", "0.35"))
-
-    if provider:
-        try:
-            from huggingface_hub import InferenceClient
-        except ImportError as exc:
-            raise RuntimeError("Install huggingface_hub from requirements.txt to use HF_CHAT_PROVIDER.") from exc
-
-        client = InferenceClient(
-            provider=provider,
-            api_key=token,
-            timeout=timeout,
-        )
-        try:
-            completion = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-        except Exception as exc:
-            detail = str(exc)
-            if "401" in detail or "Unauthorized" in detail:
-                raise RuntimeError(
-                    "Hugging Face/Novita rejected the API key. Check that HF_TOKEN contains the full active key, "
-                    "that HF_CHAT_PROVIDER matches the key provider, and restart Flask after editing .env."
-                ) from exc
-            raise RuntimeError(f"Hugging Face provider request failed: {exc}") from exc
-        content = completion.choices[0].message.content if completion.choices else None
-        if content:
-            return str(content).strip()
-        raise RuntimeError("Hugging Face provider response did not include assistant content.")
-
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "stream": False,
-    }
-    req = urllib.request.Request(
-        endpoint,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"Hugging Face endpoint returned HTTP {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Could not reach Hugging Face endpoint: {exc.reason}") from exc
-
-    data = json.loads(raw)
-    choices = data.get("choices") or []
-    if choices:
-        message = choices[0].get("message") or {}
-        content = message.get("content") or choices[0].get("text")
-        if content:
-            return content.strip()
-    if data.get("generated_text"):
-        return str(data["generated_text"]).strip()
-    raise RuntimeError("Hugging Face response did not include assistant content.")
+    content = (result.get("content") or "").strip()
+    if content:
+        return content
+    raise RuntimeError("LLM response did not include assistant content.")
 
 def _get_ingestion():
     from engine.ingestion import get_booking_journey, data_health, to_int, to_float, safe_pct, iter_jobs
@@ -1514,24 +1439,18 @@ def chatbot_message():
 @app.route("/api/chatbot/config")
 def chatbot_config():
     """Return non-secret chatbot configuration for deployment diagnostics."""
-    token = (
-        os.getenv("HF_TOKEN")
-        or os.getenv("HF_API_KEY")
-        or os.getenv("HUGGINGFACE_API_TOKEN")
-        or os.getenv("HUGGINGFACEHUB_API_TOKEN")
-        or ""
-    )
-    provider = os.getenv("HF_CHAT_PROVIDER") or os.getenv("HUGGINGFACE_CHAT_PROVIDER")
-    inferred_provider = provider or ("novita" if token.startswith("sk_") else "")
+    from engine.llm_client import resolve_llm_config
+    cfg = resolve_llm_config()
+    token = cfg["token"]
     return jsonify({
         "has_token": bool(token),
-        "token_prefix": token[:3] if token else "",
+        "token_prefix": token[:6] if token else "",
         "token_length": len(token),
-        "provider": provider or "",
-        "effective_provider": inferred_provider,
-        "model": os.getenv("HF_CHAT_MODEL") or os.getenv("HUGGINGFACE_CHAT_MODEL") or "google/gemma-4-31B-it",
-        "base_url": os.getenv("HF_CHAT_BASE_URL") or os.getenv("HUGGINGFACE_CHAT_BASE_URL") or "https://router.huggingface.co/v1",
-        "endpoint_set": bool(os.getenv("HF_CHAT_ENDPOINT") or os.getenv("HUGGINGFACE_CHAT_ENDPOINT")),
+        "provider": cfg["provider"],
+        "effective_provider": cfg["provider"],
+        "model": cfg["model"],
+        "base_url": cfg["base_url"],
+        "endpoint_set": bool(os.getenv("OPENROUTER_ENDPOINT") or os.getenv("HF_CHAT_ENDPOINT")),
     })
 
 
@@ -2976,6 +2895,283 @@ def data_actual_window_api():
     return jsonify(actual_window_payload())
 
 # ─────────────────────────────────────────────────────────────────────────────
+
+# ─── Rebooking Agent (Agentic AI + SSE) ──────────────────────────────────────
+
+def _get_rebooking_agent_modules():
+    from engine.rebooking_store import (
+        list_jobs as rb_list_jobs,
+        get_job_record as rb_get_job,
+        update_job_fields as rb_update_job,
+        get_region_daily_utilisation as rb_region_util,
+        list_escalations as rb_list_escalations,
+        resolve_escalation as rb_resolve_escalation,
+        list_audit_entries as rb_list_audit,
+        get_rebooking_kpis as rb_get_kpis,
+        reset_rebooking_store as rb_reset_store,
+    )
+    from engine.rebooking_agent import (
+        stream_rebooking_agent,
+        run_rebooking_agent,
+        approve_and_execute_rebooking,
+        reject_rebooking_proposal,
+        is_mock_llm_enabled,
+    )
+    from engine.rules_loader import load_rules as rb_load_rules
+    return {
+        "list_jobs": rb_list_jobs,
+        "get_job": rb_get_job,
+        "update_job": rb_update_job,
+        "region_util": rb_region_util,
+        "list_escalations": rb_list_escalations,
+        "resolve_escalation": rb_resolve_escalation,
+        "list_audit": rb_list_audit,
+        "get_kpis": rb_get_kpis,
+        "reset_store": rb_reset_store,
+        "stream_agent": stream_rebooking_agent,
+        "run_agent": run_rebooking_agent,
+        "approve": approve_and_execute_rebooking,
+        "reject": reject_rebooking_proposal,
+        "is_mock_llm": is_mock_llm_enabled,
+        "load_rules": rb_load_rules,
+    }
+
+
+@app.route("/api/rebooking-agent/jobs")
+def rebooking_agent_jobs():
+    """Return cancelled/aborted jobs queue, filters, KPI tiles, and agent config."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        region = request.args.get("region") or None
+        reason = request.args.get("reason") or None
+        status = request.args.get("status") or None
+
+        all_jobs = mod["list_jobs"]()
+        filtered = mod["list_jobs"](region=region, reason=reason, status=status)
+        rules = mod["load_rules"]()
+        reasons = sorted({j["reason"] for j in all_jobs if j.get("reason")})
+        regions = sorted({j["region_code"] for j in all_jobs if j.get("region_code")})
+        statuses = sorted({j["status"] for j in all_jobs if j.get("status")})
+
+        return jsonify({
+            "jobs": filtered,
+            "kpis": mod["get_kpis"](),
+            "filters": {"regions": regions, "reasons": reasons, "statuses": statuses},
+            "config": {
+                "mock_llm": mod["is_mock_llm"](),
+                "manual_benchmark_minutes": float(rules.get("agent", {}).get("manual_benchmark_minutes", 12.0)),
+                "utilisation_threshold_pct": float(rules.get("capacity_and_ranking", {}).get("utilisation_threshold_pct", 90.0)),
+                "dno_lead_time_days": int(rules.get("dno", {}).get("default_lead_time_days", 7)),
+                "simulated_message_disclaimer": rules.get("agent", {}).get("simulated_message_disclaimer", "Simulated send"),
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/jobs/<job_ref>")
+def rebooking_agent_job_detail(job_ref: str):
+    """Return job details, 28-day regional utilisation, and job audit trail."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        job = mod["get_job"](job_ref)
+        if not job:
+            return jsonify({"error": f"Job '{job_ref}' not found"}), 404
+        rules = mod["load_rules"]()
+        return jsonify({
+            "job": job,
+            "daily_utilisation": mod["region_util"](job["region_code"]),
+            "utilisation_threshold_pct": float(rules.get("capacity_and_ranking", {}).get("utilisation_threshold_pct", 90.0)),
+            "audit": mod["list_audit"](job_ref=job_ref, limit=50),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/stream/<job_ref>")
+def rebooking_agent_stream(job_ref: str):
+    """Stream live Rebooking Agent steps via Server-Sent Events (SSE)."""
+    mod = _get_rebooking_agent_modules()
+    mode = request.args.get("mode", "assisted")
+    mock_param = request.args.get("mock_llm")
+    mock_override = None if mock_param is None else (mock_param.lower() == "true")
+    try:
+        delay = float(request.args.get("delay", "0.1" if mod["is_mock_llm"](mock_override) else "0"))
+    except ValueError:
+        delay = 0.0
+
+    def event_stream():
+        for evt in mod["stream_agent"](job_ref, mode=mode, mock_llm=mock_override, step_delay_s=delay):
+            payload = json.dumps(evt["data"], default=str)
+            yield f"event: {evt['event']}\ndata: {payload}\n\n"
+
+    return Response(
+        stream_with_context(event_stream()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.route("/api/rebooking-agent/run/<job_ref>", methods=["POST"])
+def rebooking_agent_run_sync(job_ref: str):
+    """Synchronous execution endpoint for running the Rebooking Agent on one job."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        payload = request.get_json(silent=True) or {}
+        mode = payload.get("mode", "assisted")
+        mock_override = payload.get("mock_llm")
+        result = mod["run_agent"](job_ref, mode=mode, mock_llm=mock_override)
+        status_code = 404 if "not found" in str(result.get("error", "")).lower() else (502 if result.get("error") else 200)
+        return jsonify({**result, "kpis": mod["get_kpis"]()}), status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/jobs/<job_ref>/approve", methods=["POST"])
+def rebooking_agent_approve(job_ref: str):
+    """Approve & Execute a prepared booking proposal (Assisted mode or Vulnerable customer)."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        payload = request.get_json(silent=True) or {}
+        result = mod["approve"](
+            job_ref,
+            edited_message=payload.get("edited_message"),
+            slot_id_override=payload.get("slot_id"),
+        )
+        if not result.get("ok"):
+            return jsonify(result), 400
+        return jsonify({**result, "kpis": mod["get_kpis"]()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/jobs/<job_ref>/reject", methods=["POST"])
+def rebooking_agent_reject(job_ref: str):
+    """Reject a proposed booking and escalate it to the planner queue."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        payload = request.get_json(silent=True) or {}
+        reason = payload.get("reason") or "Rejected by planner"
+        result = mod["reject"](job_ref, reason=reason)
+        if not result.get("ok"):
+            return jsonify(result), 400
+        return jsonify({**result, "kpis": mod["get_kpis"]()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/jobs/<job_ref>/message", methods=["POST"])
+def rebooking_agent_edit_message(job_ref: str):
+    """Save an edited customer message preview (always marked Simulated send)."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        payload = request.get_json(silent=True) or {}
+        message_text = (payload.get("message") or "").strip()
+        if not message_text:
+            return jsonify({"error": "Message text cannot be empty."}), 400
+        job = mod["get_job"](job_ref)
+        if not job:
+            return jsonify({"error": f"Job '{job_ref}' not found."}), 404
+        channel = payload.get("channel") or job.get("customer_message_channel") or job.get("contact_preference") or "SMS"
+        msg_status = "PENDING_APPROVAL (Simulated send)" if job.get("agent_outcome") == "AWAITING_APPROVAL" else "Simulated send"
+        updated = mod["update_job"](job_ref, {
+            "customer_message": message_text,
+            "customer_message_channel": channel,
+            "message_status": msg_status,
+        })
+        return jsonify({"ok": True, "job": updated, "message_status": msg_status})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/escalations")
+def rebooking_agent_escalations():
+    """Return planner escalation queue."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        status = request.args.get("status") or None
+        return jsonify({"escalations": mod["list_escalations"](status=status)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/escalations/<escalation_id>/resolve", methods=["POST"])
+def rebooking_agent_resolve_escalation(escalation_id: str):
+    """Resolve an open escalation (optionally booking one of the 3 nearest slot options)."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        payload = request.get_json(silent=True) or {}
+        slot_id = payload.get("slot_id")
+        note = payload.get("resolution_note") or "Resolved by planner"
+        all_esc = mod["list_escalations"]()
+        target = next((e for e in all_esc if e["escalation_id"] == escalation_id), None)
+        if not target:
+            return jsonify({"error": f"Escalation '{escalation_id}' not found."}), 404
+
+        if slot_id:
+            res = mod["approve"](target["job_ref"], slot_id_override=slot_id)
+            if not res.get("ok"):
+                return jsonify(res), 400
+            return jsonify({"ok": True, "resolved": True, "rebooked": True, "kpis": mod["get_kpis"](), **res})
+
+        resolved = mod["resolve_escalation"](escalation_id, note)
+        return jsonify({"ok": True, "escalation": resolved, "kpis": mod["get_kpis"]()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/audit")
+def rebooking_agent_audit():
+    """Return filterable audit trail, or downloadable CSV when format=csv."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        job_ref = request.args.get("job_ref") or None
+        step = request.args.get("step") or None
+        status = request.args.get("status") or None
+        region = request.args.get("region") or None
+        limit = int(request.args.get("limit", 250))
+
+        entries = mod["list_audit"](
+            job_ref=job_ref, step_name=step, status=status, region_code=region, limit=limit
+        )
+        if request.args.get("format") == "csv":
+            import csv as _csv
+            import io as _io
+            buf = _io.StringIO()
+            fieldnames = [
+                "audit_id", "created_at", "run_id", "job_ref", "region_code", "mode",
+                "step_name", "tool_name", "status", "decision", "reasoning_summary",
+                "input_json", "output_json",
+            ]
+            writer = _csv.DictWriter(buf, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in entries:
+                writer.writerow({k: row.get(k, "") for k in fieldnames})
+            return Response(
+                buf.getvalue(),
+                mimetype="text/csv",
+                headers={"Content-Disposition": 'attachment; filename="rebooking_audit_log.csv"'},
+            )
+        return jsonify({"entries": entries})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rebooking-agent/reset", methods=["POST"])
+def rebooking_agent_reset():
+    """Reset the Rebooking Agent operational queue and 28-day slots to seeded defaults."""
+    try:
+        mod = _get_rebooking_agent_modules()
+        payload = request.get_json(silent=True) or {}
+        res = mod["reset_store"](regenerate_csv=bool(payload.get("regenerate_csv", False)))
+        return jsonify({**res, "kpis": mod["get_kpis"]()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 _ensure_data()
 

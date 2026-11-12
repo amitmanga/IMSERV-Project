@@ -6,7 +6,7 @@
   <title>EXL - Smart Meter Appointment and Resource Planning</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/style.css?v=10" />
+  <link rel="stylesheet" href="/static/css/style.css?v=12" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -61,6 +61,14 @@
         <div class="nav-item" data-view="financial" onclick="switchView('financial', this)">
           <span class="nav-icon">💷</span>
           <span class="nav-label">Scenario Impact</span>
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-label">Agentic AI</div>
+        <div class="nav-item" data-view="rebooking-agent" onclick="switchView('rebooking-agent', this)">
+          <span class="nav-icon"></span>
+          <span class="nav-label">Rebooking Agent</span>
         </div>
       </div>
 
@@ -950,6 +958,243 @@
 
       </div><!-- /view-financial -->
 
+      <!-- ==================== VIEW: REBOOKING AGENT ==================== -->
+      <div class="view" id="view-rebooking-agent">
+        <div class="rbk-toolbar card">
+          <div class="rbk-toolbar-left">
+            <div class="rbk-control-group">
+              <span class="rbk-control-label">Execution Mode</span>
+              <div class="rbk-segmented" role="group" aria-label="Agent Execution Mode">
+                <button type="button" class="rbk-seg-btn active" id="rbk-mode-assisted" data-mode="assisted">Assisted (Human Approve)</button>
+                <button type="button" class="rbk-seg-btn" id="rbk-mode-autonomous" data-mode="autonomous">Autonomous</button>
+              </div>
+            </div>
+            <div class="rbk-control-group">
+              <span class="rbk-control-label">LLM Brain</span>
+              <div class="rbk-segmented" role="group" aria-label="LLM Mode">
+                <button type="button" class="rbk-seg-btn active" id="rbk-llm-mock" data-mock="true">Deterministic Mock</button>
+                <button type="button" class="rbk-seg-btn" id="rbk-llm-live" data-mock="false">Live AI (OpenRouter)</button>
+              </div>
+            </div>
+          </div>
+          <div class="rbk-toolbar-right">
+            <span class="rbk-status-pill" id="rbk-run-status-pill">Ready</span>
+            <button type="button" class="rbk-btn rbk-btn-primary" id="rbk-run-all-btn">Run on all</button>
+            <button type="button" class="rbk-btn rbk-btn-ghost" id="rbk-reset-btn">Reset Demo</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid rbk-kpi-grid" id="rbk-kpis">
+          <div class="kpi-card">
+            <div class="kpi-label">Jobs Processed</div>
+            <div class="kpi-value" id="rbk-kpi-processed">0</div>
+            <div class="kpi-sub" id="rbk-kpi-processed-sub">0 pending in queue</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Auto-Rebooked</div>
+            <div class="kpi-value" id="rbk-kpi-auto-rebooked">0</div>
+            <div class="kpi-sub" id="rbk-kpi-rebooked-sub">0 total rebooked</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Escalated</div>
+            <div class="kpi-value" id="rbk-kpi-escalated">0</div>
+            <div class="kpi-sub" id="rbk-kpi-escalated-sub">0 open planner items</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Avg Agent Time</div>
+            <div class="kpi-value" id="rbk-kpi-avg-time">--</div>
+            <div class="kpi-sub" id="rbk-kpi-benchmark-sub">vs 12 min manual benchmark</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">SLA-Safe %</div>
+            <div class="kpi-value" id="rbk-kpi-sla-safe">100%</div>
+            <div class="kpi-sub" id="rbk-kpi-sla-sub">All rebooks within SLA</div>
+          </div>
+        </div>
+
+        <div class="rbk-workspace">
+          <!-- LEFT: Cancelled/Aborted Job Queue -->
+          <div class="card rbk-col-queue">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Cancelled / Aborted Queue</div>
+                <div class="card-subtitle">Select a job or run the 8-step agent</div>
+              </div>
+              <span class="rbk-count-badge" id="rbk-queue-count">0</span>
+            </div>
+            <div class="rbk-card-body">
+              <div class="rbk-queue-filters">
+                <select class="filter-select" id="rbk-filter-region" aria-label="Filter queue by region">
+                  <option value="">All Regions</option>
+                </select>
+                <select class="filter-select" id="rbk-filter-reason" aria-label="Filter queue by reason">
+                  <option value="">All Reasons</option>
+                </select>
+                <select class="filter-select" id="rbk-filter-status" aria-label="Filter queue by agent status">
+                  <option value="">All States</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="AWAITING_APPROVAL">Awaiting Approval</option>
+                  <option value="REBOOKED">Rebooked</option>
+                  <option value="ESCALATED">Escalated</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+              <div class="rbk-queue-list" id="rbk-queue-list"></div>
+            </div>
+          </div>
+
+          <!-- CENTRE: Live Reasoning Timeline -->
+          <div class="card rbk-col-timeline">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Live Agent Reasoning Timeline</div>
+                <div class="card-subtitle" id="rbk-selected-header">Select a job on the left and click Run Agent</div>
+              </div>
+              <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-primary" id="rbk-run-selected-btn" disabled>Run Agent</button>
+            </div>
+            <div class="rbk-card-body">
+              <div class="rbk-error-banner" id="rbk-error-banner" hidden>
+                <div class="rbk-error-text" id="rbk-error-text"></div>
+                <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-ghost" id="rbk-retry-mock-btn">Retry with Deterministic Mock</button>
+              </div>
+
+              <div class="rbk-approval-bar" id="rbk-approval-bar" hidden>
+                <div class="rbk-approval-copy">
+                  <strong id="rbk-approval-title">Human Approval Required</strong>
+                  <span id="rbk-approval-desc">Review proposed slot and customer message before committing.</span>
+                </div>
+                <div class="rbk-approval-actions">
+                  <button type="button" class="rbk-btn rbk-btn-ok" id="rbk-btn-approve">Approve &amp; Execute</button>
+                  <button type="button" class="rbk-btn rbk-btn-ghost" id="rbk-btn-edit-msg">Edit Message</button>
+                  <button type="button" class="rbk-btn rbk-btn-crit" id="rbk-btn-reject">Reject</button>
+                </div>
+              </div>
+
+              <div class="rbk-outcome-banner" id="rbk-outcome-banner" hidden></div>
+
+              <div class="rbk-timeline" id="rbk-timeline">
+                <div class="rbk-empty-state">Choose any cancelled or aborted job from the queue to inspect or stream its 8-step decision trail.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: 28-Day Utilisation & Customer Message Preview -->
+          <div class="rbk-col-right">
+            <div class="card rbk-util-card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">28-Day Regional Utilisation</div>
+                  <div class="card-subtitle" id="rbk-util-subtitle">Region capacity vs 90% threshold</div>
+                </div>
+              </div>
+              <div class="rbk-card-body">
+                <div class="chart-wrap rbk-chart-wrap">
+                  <canvas id="rbk-util-chart"></canvas>
+                </div>
+                <div class="rbk-chosen-slot-card" id="rbk-chosen-slot-card">
+                  <span class="rbk-muted">No slot selected yet.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card rbk-msg-card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Customer Message Preview</div>
+                  <div class="card-subtitle" id="rbk-msg-meta">Drafted after slot decision</div>
+                </div>
+                <div class="rbk-msg-badges">
+                  <span class="rbk-channel-badge" id="rbk-msg-channel">--</span>
+                  <span class="rbk-sim-badge" id="rbk-msg-sim-badge">Simulated send</span>
+                </div>
+              </div>
+              <div class="rbk-card-body">
+                <div class="rbk-msg-preview" id="rbk-msg-preview">
+                  <span class="rbk-muted">Run the agent on a rebookable job to preview the drafted customer notification.</span>
+                </div>
+                <div class="rbk-msg-editor" id="rbk-msg-editor-wrap" hidden>
+                  <textarea class="rbk-textarea" id="rbk-msg-textarea" rows="4"></textarea>
+                  <div class="rbk-editor-actions">
+                    <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-primary" id="rbk-btn-save-msg">Save Message</button>
+                    <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-ghost" id="rbk-btn-cancel-msg">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTTOM: Escalation Queue & Audit Log -->
+        <div class="rbk-bottom-grid">
+          <div class="card rbk-esc-panel">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Planner Escalation Queue</div>
+                <div class="card-subtitle">Blocked jobs, vulnerable approvals, and SLA breaches with nearest options</div>
+              </div>
+              <span class="rbk-count-badge" id="rbk-esc-count">0</span>
+            </div>
+            <div class="rbk-card-body">
+              <div class="rbk-escalation-list" id="rbk-escalation-list">
+                <div class="rbk-empty-state">No open escalations.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card rbk-audit-panel">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Agent Audit Log</div>
+                <div class="card-subtitle">Every tool call, input, output, and reasoning summary</div>
+              </div>
+              <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-ghost" id="rbk-audit-export-btn">Export CSV</button>
+            </div>
+            <div class="rbk-card-body">
+              <div class="rbk-audit-filters">
+                <input type="text" class="filter-select rbk-audit-input" id="rbk-audit-job" placeholder="Filter by Job Ref (e.g. RBK-DEMO-A)" />
+                <select class="filter-select" id="rbk-audit-step">
+                  <option value="">All Steps</option>
+                  <option value="Detect">Detect</option>
+                  <option value="Dependencies/D30">Dependencies/D30</option>
+                  <option value="DNO">DNO</option>
+                  <option value="Capacity">Capacity</option>
+                  <option value="Decide">Decide</option>
+                  <option value="Rebook">Rebook</option>
+                  <option value="Message">Message</option>
+                  <option value="Log">Log</option>
+                </select>
+                <select class="filter-select" id="rbk-audit-status">
+                  <option value="">All Statuses</option>
+                  <option value="ok">OK</option>
+                  <option value="completed">Completed</option>
+                  <option value="warn">Warning</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="awaiting_approval">Awaiting Approval</option>
+                  <option value="error">Error</option>
+                </select>
+              </div>
+              <div class="rbk-audit-table-wrap">
+                <table class="data-table rbk-audit-table">
+                  <thead>
+                    <tr>
+                      <th class="rbk-col-time">Time (UTC)</th>
+                      <th class="rbk-col-job">Job Ref</th>
+                      <th class="rbk-col-step">Step</th>
+                      <th class="rbk-col-tool">Tool</th>
+                      <th class="rbk-col-status">Status</th>
+                      <th class="rbk-col-why">Why</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rbk-audit-tbody">
+                    <tr><td colspan="6" class="rbk-muted">No audit entries yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /view-rebooking-agent -->
+
     </div><!-- /page-content -->
   </main>
 </div><!-- /app-shell -->
@@ -1023,6 +1268,7 @@
 <script src="/static/js/roster.js?v=8"></script>
 <script src="/static/js/longterm.js?v=2"></script>
 <script src="/static/js/meterview.js?v=1"></script>
+<script src="/static/js/rebooking_agent.js?v=6"></script>
 <script src="/static/js/app.js?v=2"></script>
 
 </body>

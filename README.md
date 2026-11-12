@@ -26,6 +26,7 @@ The app is designed for operational leaders, planning teams, field managers, and
 - Single meter lookup for before-call context, including meter details, MOP/DC status, visit history, and dialler contacts.
 - Financial scenario modelling for revenue, cost, margin, capacity status, and cost per executed appointment.
 - AI-assisted operational summaries and recommendations through a server-side chatbot proxy.
+- **Rebooking Agent (Agentic AI)**: end-to-end automated recovery of cancelled and aborted jobs with configurable DNO/D30/dependency rules (`config/rules.yaml`), Assisted vs Autonomous modes, live SSE reasoning timeline, planner escalation queue, simulated customer notifications, and CSV audit logging.
 
 ---
 
@@ -53,6 +54,7 @@ The application uses a Flask monolith for API routes, modular Python files for a
 | Resource Planning | Shows short-term engineer-slot utilisation and long-term demand versus capacity forecasts. |
 | Single Meter View | Looks up an MPXN and displays meter, supplier, MOP, DC, visit, and dialler contact history. |
 | Scenario Impact | Simulates appointment volume, success rate, cancellation rate, cost, revenue, engineer count, and margin outcomes. |
+| Rebooking Agent | Agentic AI tool-calling workflow (`Detect -> Dependencies/D30 -> DNO -> Capacity -> Decide -> Rebook -> Message -> Log`) with live SSE streaming, 28-day regional utilisation view, Assisted human approval, escalations, and audit CSV export. |
 
 ---
 
@@ -109,6 +111,30 @@ You can also point the chatbot at a dedicated endpoint:
 HF_CHAT_ENDPOINT=https://your-endpoint.endpoints.huggingface.cloud/v1/chat/completions
 ```
 
+### Rebooking Agent & AI Provider Environment Variables
+
+```bash
+# Preferred AI provider: openrouter (auto-selected when OPENROUTER_API_KEY or sk-or- OPENAI_API_KEY is set) or huggingface
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free
+REBOOKING_AGENT_MAX_TOKENS=512
+
+# Run the deterministic scripted tool-calling brain (true) or live OpenRouter/HF AI loop (false)
+MOCK_LLM=false
+
+# Optional override for business rules YAML path (defaults to ./config/rules.yaml)
+REBOOKING_RULES_PATH=./config/rules.yaml
+
+# Optional SQLite state store override (defaults to ./data/rebooking_state.db)
+# REBOOKING_DB_PATH=./data/rebooking_state.db
+```
+
+**Switching between Mock and Live LLM:**
+- **Via `.env`:** Set `MOCK_LLM=false` (with `OPENROUTER_API_KEY` or `sk-or-` `OPENAI_API_KEY` and `OPENROUTER_MODEL`) then restart `app.py` to run the live OpenRouter tool-calling loop, or set `MOCK_LLM=true` for offline/deterministic runs.
+- **Via UI:** Inside the **Rebooking Agent** tab toolbar, toggle **LLM Brain** between `Deterministic Mock` and `Live AI (OpenRouter)` on the fly. If the live provider times out or rejects a request, the UI displays a friendly banner with a one-click retry in Deterministic Mock mode.
+
 ---
 
 ## Docker
@@ -148,6 +174,8 @@ The included `render.yaml` contains the non-secret deployment settings. Keep `HF
 ```text
 IMSERV-Project/
 |-- app.py                         # Flask application and API routes
+|-- config/
+|   |-- rules.yaml                 # Configurable DNO, D30, dependency, capacity & SLA rules
 |-- requirements.txt               # Python runtime dependencies
 |-- render.yaml                    # Render deployment configuration
 |-- Dockerfile
@@ -156,6 +184,7 @@ IMSERV-Project/
 |   |-- IMSERV_app_demo_3min.webm
 |   |-- IMSERV_app_demo_3min_preview.png
 |-- scripts/
+|   |-- augment_rebooking_data.py  # Deterministic synthetic queue & 28d capacity augmentation (seed=42)
 |   |-- create_demo_video.py       # Playwright-based demo video recorder
 |   |-- build_sqlite_store.py
 |   |-- refresh_data.py
@@ -167,14 +196,18 @@ IMSERV-Project/
 |   |-- field_ops_engine.py        # Capacity and field operations planning
 |   |-- financial_engine.py        # Financial scenario modelling
 |   |-- ai_recommendations.py      # Operational recommendation logic
+|   |-- rules_loader.py            # YAML rules evaluator (DNO/D30/dependencies/SLA)
+|   |-- rebooking_store.py         # SQLite persistence for rebooking queue, slots, escalations & audit
+|   |-- rebooking_tools.py         # 10 JSON-schema tools + guardrails for Rebooking Agent
+|   |-- rebooking_agent.py         # Tool-calling agent loop (Mock & Live HF LLM + SSE streaming)
 |-- static/
 |   |-- css/style.css
 |   |-- img/exl_service_logo.svg
-|   |-- js/                        # Frontend modules
+|   |-- js/                        # Frontend modules (including rebooking_agent.js)
 |-- templates/
 |   |-- index.html                 # Single-page application shell
 |-- data/
-|   |-- inputs/                    # CSV input datasets
+|   |-- inputs/                    # CSV input datasets (including rebooking_jobs.csv & rebooking_slots_28d.csv)
 |-- deployment/
 |   |-- schema.sql                 # Optional PostgreSQL schema
 |-- tests/
@@ -289,6 +322,71 @@ python engine/data_generator.py
 | `/api/data/actual-window` | GET | Current actuals window. |
 | `/api/regions` | GET | Region reference list. |
 | `/api/filters` | GET | Filter values for the frontend. |
+
+### Rebooking Agent
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/rebooking-agent/jobs` | GET | Cancelled/aborted job queue, filter options, KPI tiles, and config. |
+| `/api/rebooking-agent/jobs/<job_ref>` | GET | Job detail, 28-day regional daily utilisation, and job audit entries. |
+| `/api/rebooking-agent/stream/<job_ref>` | GET | Server-Sent Events (SSE) stream of the 8-step tool-calling agent run. |
+| `/api/rebooking-agent/run/<job_ref>` | POST | Synchronous single-job agent run. |
+| `/api/rebooking-agent/jobs/<job_ref>/approve` | POST | Approve & Execute a prepared booking in Assisted or Vulnerable mode. |
+| `/api/rebooking-agent/jobs/<job_ref>/reject` | POST | Reject a proposed booking and escalate it to the planner queue. |
+| `/api/rebooking-agent/jobs/<job_ref>/message` | POST | Save an edited simulated customer notification. |
+| `/api/rebooking-agent/escalations` | GET | List planner escalations (`OPEN` / `RESOLVED`) with nearest slot options. |
+| `/api/rebooking-agent/escalations/<escalation_id>/resolve` | POST | Resolve an escalation (optionally booking one of the nearest slot options). |
+| `/api/rebooking-agent/audit` | GET | Filterable audit log JSON (`format=csv` downloads CSV). |
+| `/api/rebooking-agent/reset` | POST | Reset the Rebooking Agent SQLite demo queue to fresh synthetic defaults. |
+
+---
+
+## Rebooking Agent Rules & Assumptions (`config/rules.yaml`)
+
+All business rules are decoupled into [`config/rules.yaml`](config/rules.yaml) and loaded dynamically without code changes:
+
+- **DNO Involvement & Lead Time**:
+  - Job types requiring DNO: `NEW_INSTALL`, `REMOVAL`.
+  - Specific cancellation/abort reasons requiring DNO even on exchanges/repairs: `Faulty meter location`, `Exposed wires`, `Service head fault`.
+  - Default DNO turnaround lead time: **`7` calendar days** (`default_lead_time_days`). When DNO status is `PENDING`, `raise_dno_request` creates a simulated request (`DNO-SIM-*`) and constrains slot selection to `slot_date >= today + 7 days`.
+  - `NOT_REQUIRED` and `COMPLETE` proceed immediately; `BLOCKED` stops and escalates to the planner queue.
+- **D30 Industry Flow Statuses**:
+  - Clear statuses: `CLEAR`, `COMPLETE`, `NOT_REQUIRED`.
+  - Blocking statuses: `REJECTED`, `PENDING_SUPPLIER`, `DATA_MISMATCH`, `BLOCKED`, `EXCEPTION` (and any unrecognised non-clear status).
+- **Third-Party Blocking Dependencies**:
+  - Blocking flags: `ASBESTOS_CHECK`, `LANDLORD_CONSENT`, `SCAFFOLDING`, `REVENUE_PROTECTION_HOLD`, `COMMS_HUB_SHORTAGE`, `THIRD_PARTY_ACCESS_PERMIT`.
+  - Non-blocking flags: `NONE`, `IHD_FOLLOWUP`.
+- **Capacity, Slot Ranking & Guardrails**:
+  - Forward horizon: `28` days; regional daily utilisation threshold: **`90.0%`** (days above 90% are skipped).
+  - Ranking order: within SLA -> regional utilisation <= 90% -> matching engineer skill -> preferred time of day (`Morning` / `Afternoon` / `Evening`) -> avoids original engineer/supplier for no-access abort reasons where alternatives exist -> earliest compliant date & lowest utilisation.
+  - Guardrails: every tool validates strict JSON schema inputs; `rebook_job` rejects any `slot_id` not returned by `get_capacity` and never executes in `Assisted` mode or for `Vulnerable / PSR` customers (`vulnerable_always_requires_approval: true`) until a human clicks **Approve & Execute**. Customer messages are always tagged **`Simulated send`**.
+- **Synthetic Data Generation**: Run `python scripts/augment_rebooking_data.py` (`RANDOM_SEED=42`) to regenerate [`data/inputs/rebooking_jobs.csv`](data/inputs/rebooking_jobs.csv) (30 jobs including scenarios `a`–`f`) and [`data/inputs/rebooking_slots_28d.csv`](data/inputs/rebooking_slots_28d.csv) directly from existing regions, engineers, suppliers, and cancellation/abort reasons without mutating `master_operations.csv`.
+
+---
+
+## 5-Minute Rebooking Agent Demo Script (Scenarios a–f)
+
+Start the server (`python app.py`), open `http://localhost:5000`, and click **Rebooking Agent** in the left navigation. Ensure **Execution Mode = Assisted (Human Approve)** and **LLM Brain = Deterministic Mock** (or `MOCK_LLM=false` for live HF tool calling), then click **Reset Demo** if needed:
+
+1. **Scenario (a) Clean Rebook & Assisted Approval (`RBK-DEMO-A`) — ~60s**:
+   - Select `RBK-DEMO-A` (`EXCHANGE`, `CLEAR` D30, `NOT_REQUIRED` DNO) and click **Run Agent**.
+   - Watch steps 1–8 stream live via SSE. Notice `Rebook` pauses at `AWAITING_APPROVAL` because Assisted mode blocks auto-commit, while `Message` previews the polite SMS marked **`Simulated send`**.
+   - Click **Edit Message** to tweak the text if desired, click **Save Message**, then click **Approve & Execute** to commit the booking (`rebook_flag = True`).
+2. **Switch to Autonomous Mode & Scenario (b) High-Utilisation Avoidance (`RBK-DEMO-B`) — ~45s**:
+   - Toggle top bar **Execution Mode** to **Autonomous**.
+   - Click **Run Agent** on `RBK-DEMO-B` (`No Access` abort in `SE`).
+   - Point out the right-hand **28-Day Regional Utilisation** chart: red bars (>90%) on days 1–4 are skipped, the original engineer is avoided, and the chosen green bar lands cleanly within SLA under 90%.
+3. **Scenario (c) DNO Pending (`RBK-DEMO-C`) — ~45s**:
+   - Run `RBK-DEMO-C` (`NEW_INSTALL`, DNO=`PENDING`).
+   - Show step 3 (`raise_dno_request`) submitting a simulated DNO clearance with a 7-day lead time, constraining the chosen green slot to `today + 7 days` or later while still beating SLA.
+4. **Scenario (d) Blocked by D30 / Dependency (`RBK-DEMO-D`) — ~45s**:
+   - Run `RBK-DEMO-D`. Step 2 detects blocking D30 (`PENDING_SUPPLIER`) + `ASBESTOS_CHECK`, halts cleanly, skips downstream rebook/message steps, and adds the job to the **Planner Escalation Queue**.
+5. **Scenario (e) No Slot Within SLA (`RBK-DEMO-E`) — ~45s**:
+   - Run `RBK-DEMO-E` (tight SLA vs high near-term utilisation). Step 5 finds no compliant slot inside SLA, escalates (`SLA-Safe %` updates in KPIs), and surfaces the **3 nearest post-SLA options** in the **Planner Escalation Queue** with one-click **Book Option** buttons.
+6. **Scenario (f) Vulnerable / PSR Customer Guardrail & Audit Export (`RBK-DEMO-F`) — ~60s**:
+   - Even with **Execution Mode = Autonomous**, run `RBK-DEMO-F` (tagged `PSR / Vulnerable`).
+   - Show the safety guardrail blocking `rebook_job` and enforcing mandatory human review (`AWAITING_APPROVAL`), then click **Approve & Execute** (or **Reject**).
+   - Finish by filtering the **Agent Audit Log** at the bottom and clicking **Export CSV** to inspect the complete tool-call, input/output, and reasoning trail.
 
 Common query parameters:
 

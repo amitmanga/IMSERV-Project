@@ -390,7 +390,7 @@ Object.assign(EXL, {
       const view = el.closest('.nav-item')?.dataset.view;
       const icon = el.id === 'theme-icon'
         ? ((document.documentElement.dataset.theme || 'light') === 'dark' ? 'moon' : 'sun')
-        : ({ journey: 'barChart', forecasting: 'trendingUp', cancellations: 'xCircle', 'field-ops': 'wrench', financial: 'wallet' }[view] || 'settings');
+        : ({ journey: 'barChart', forecasting: 'trendingUp', cancellations: 'xCircle', 'field-ops': 'wrench', financial: 'wallet', meterview: 'target', 'rebooking-agent': 'bot' }[view] || 'settings');
       this.setElementIcon(el, icon);
     });
 

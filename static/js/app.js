@@ -8,6 +8,7 @@ const VIEW_CONFIG = {
   financial: { title: 'Appointment and Resource Financial Planning', breadcrumb: 'EXL / Finance / Scenario Impact', loader: loadFinancialDashboard },
   timeslot:  { title: 'Dialler Performance', breadcrumb: 'EXL / Appointments / Dialler Performance', loader: loadTimeslotDashboard },
   meterview: { title: 'Single Meter View', breadcrumb: 'EXL / Meters / Single Meter View', loader: loadMeterViewDashboard },
+  'rebooking-agent': { title: 'Rebooking Agent', breadcrumb: 'EXL / Agentic AI / Rebooking Agent', loader: loadRebookingAgentDashboard },
 };
 
 const VIEW_LOADING_TARGETS = {
@@ -61,6 +62,11 @@ const VIEW_LOADING_TARGETS = {
   ],
   meterview: [
     'mv-results',
+  ],
+  'rebooking-agent': [
+    'rbk-kpis',
+    'rbk-queue-list',
+    'rbk-timeline',
   ],
 };
 
@@ -212,8 +218,8 @@ function updateHeaderFiltersForView(viewName) {
   const monthSel = document.getElementById('global-month');
   if (!regionSel && !monthSel) return;
 
-  const hideRegion = viewName === 'meterview';
-  const hideMonth = viewName === 'field-ops' || viewName === 'forecasting' || viewName === 'timeslot';
+  const hideRegion = viewName === 'meterview' || viewName === 'rebooking-agent';
+  const hideMonth = viewName === 'field-ops' || viewName === 'forecasting' || viewName === 'timeslot' || viewName === 'rebooking-agent';
   const clearAndToggle = (select, hidden) => {
     if (!select) return;
     if (hidden && select.value) select.value = '';
@@ -223,7 +229,7 @@ function updateHeaderFiltersForView(viewName) {
   };
 
   clearAndToggle(regionSel, hideRegion);
-  clearAndToggle(monthSel, hideMonth || viewName === 'meterview');
+  clearAndToggle(monthSel, hideMonth);
 }
 
 function monthOptionsForView(viewName) {

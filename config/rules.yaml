@@ -1,0 +1,125 @@
+# ==============================================================================
+# IMSERV / EXL Smart Metering — Rebooking Agent Business Rules Configuration
+# ==============================================================================
+# These rules separate operational assumptions from agent code so planners can
+# adjust DNO lead times, D30 clearing rules, blocking dependencies, SLA targets,
+# and slot-ranking thresholds without touching Python logic.
+
+dno:
+  # Job types that normally require Distribution Network Operator (DNO) clearance
+  # (e.g. new supply/meter installations or full removals affecting service heads).
+  job_types_requiring_dno:
+    - NEW_INSTALL
+    - REMOVAL
+
+  # Specific cancellation/abort reasons that trigger DNO involvement even on
+  # routine EXCHANGE or REPAIR jobs (e.g., cut-out / service head / location faults).
+  reasons_requiring_dno:
+    - Faulty meter location
+    - Exposed wires
+    - Service head fault
+
+  # Default DNO turnaround lead time (calendar days) when a new DNO request is
+  # raised for a PENDING job. Rebooking slots are only considered on/after today + lead_time_days.
+  default_lead_time_days: 7
+
+  # DNO statuses considered ready to proceed immediately.
+  clear_statuses:
+    - NOT_REQUIRED
+    - COMPLETE
+
+  # DNO status where an agent may raise a simulated DNO request and book after lead time.
+  pending_statuses:
+    - PENDING
+
+  # DNO status that prevents automated rebooking and requires planner escalation.
+  blocking_statuses:
+    - BLOCKED
+
+d30:
+  # UK Smart Metering D30 / industry data flow statuses that allow rebooking.
+  clear_statuses:
+    - CLEAR
+    - COMPLETE
+    - NOT_REQUIRED
+
+  # D30 statuses that indicate industry flow exceptions or supplier mismatches
+  # and must block rebooking until resolved by a planner.
+  blocking_statuses:
+    - REJECTED
+    - PENDING_SUPPLIER
+    - DATA_MISMATCH
+    - BLOCKED
+    - EXCEPTION
+
+dependencies:
+  # Third-party / site dependency flags that prevent safe rebooking until cleared.
+  blocking_flags:
+    - ASBESTOS_CHECK
+    - LANDLORD_CONSENT
+    - SCAFFOLDING
+    - REVENUE_PROTECTION_HOLD
+    - COMMS_HUB_SHORTAGE
+    - THIRD_PARTY_ACCESS_PERMIT
+
+  # Informational flags that do not block rebooking.
+  non_blocking_flags:
+    - NONE
+    - IHD_FOLLOWUP
+
+capacity_and_ranking:
+  # Forward look-ahead window in days for candidate appointment search.
+  horizon_days: 28
+
+  # Maximum regional daily utilisation % allowed for automated slot selection.
+  # Days above this threshold are skipped when choosing a slot.
+  utilisation_threshold_pct: 90.0
+
+  # Reasons classified as "no-access" where avoiding the previous engineer/supplier
+  # is preferred when alternative engineers are available.
+  no_access_reasons:
+    - No access
+    - No access to meter
+    - Access Denied
+    - Customer not home
+    - Customer Not Home
+    - Customer unavailable
+    - No Answer
+
+  # Appointment time windows and customer-friendly descriptions.
+  time_windows:
+    Morning: "08:00 - 12:00"
+    Afternoon: "12:00 - 16:00"
+    Evening: "16:00 - 20:00"
+
+  # Number of nearest post-SLA alternative slots returned when escalating an SLA breach.
+  nearest_options_count: 3
+
+sla:
+  # Default SLA days from detection/today by job type when not explicitly overridden.
+  default_days_by_job_type:
+    NEW_INSTALL: 14
+    EXCHANGE: 14
+    REPAIR: 5
+    REMOVAL: 21
+
+  # Tighter SLA days applied to safety-related reasons.
+  urgent_reasons_days:
+    Safety concern: 3
+    Safety hazard: 3
+    Health & safety concern: 3
+    Unsafe Premises: 3
+
+agent:
+  # Hard ceiling on tool-calling turns per job to prevent infinite loops.
+  max_steps: 15
+
+  # Manual planner time benchmark (minutes) shown on Rebooking Agent KPI tiles.
+  manual_benchmark_minutes: 12.0
+
+  # Guardrail: vulnerable / Priority Services Register (PSR) customers ALWAYS require
+  # explicit human approval, even when the UI is in Autonomous mode.
+  vulnerable_always_requires_approval: true
+
+  # Mandatory disclaimer attached to every drafted customer notification.
+  simulated_message_disclaimer: "Simulated send"

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T15:46:29.554703Z",
+  "generated_at": "2026-11-12T16:21:43.714633Z",
   "source_of_truth": "master_operations.csv",
   "relationship_model": {
     "master_operations.csv": "Job-level ledger keyed by job_ref with supplier, region, patch, channel, engineer, status, dates, revenue, and cost.",
@@ -25,10 +25,10 @@
     "field_engineers.csv",
     "forecast_baseline_2025.csv"
   ],
-  "rolling_anchor_month": "2026-06",
-  "actual_period": "2025-06-01 to 2026-05-31",
-  "forecast_period": "2026-06-01 to 2027-05-31",
-  "period": "2025-06-01 to 2027-05-31",
+  "rolling_anchor_month": "2026-11",
+  "actual_period": "2025-11-01 to 2026-10-31",
+  "forecast_period": "2026-11-01 to 2027-10-31",
+  "period": "2025-11-01 to 2027-10-31",
   "regions": [
     "NW",
     "NE",
@@ -38,5 +38,6 @@
     "WAL",
     "SCO",
     "YRK"
-  ]
+  ],
+  "date_refresh_mode": "date-only"
 }

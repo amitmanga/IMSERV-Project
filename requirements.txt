@@ -1,8 +1,9 @@
 # IMSERV Smart Meter Field Planning Platform
 # Runtime dependencies for the Flask app.
 
-Flask==3.0.3
-Flask-Cors==4.0.0
-gunicorn==22.0.0
-python-dotenv==1.0.1
-huggingface_hub>=0.34.0
+Flask
+Flask-Cors
+gunicorn
+python-dotenv
+huggingface_hub
+PyYAML
