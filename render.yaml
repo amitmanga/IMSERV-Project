@@ -27,6 +27,20 @@ services:
         value: "450"
       - key: HF_CHAT_TEMPERATURE
         value: "0.35"
+      - key: LLM_PROVIDER
+        value: openrouter
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_MODEL
+        value: nvidia/nemotron-3.5-lightning:free
+      - key: REBOOKING_AGENT_MAX_TOKENS
+        value: "512"
+      - key: MOCK_LLM
+        value: "false"
+      - key: REBOOKING_RULES_PATH
+        value: ./config/rules.yaml
       - key: IMSERV_CACHE_LARGE_DATASETS
         value: "false"
       - key: IMSERV_SQLITE_ENABLED
