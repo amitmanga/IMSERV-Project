@@ -22,6 +22,7 @@ from engine.rebooking_store import (
     upsert_escalation,
 )
 from engine.rules_loader import (
+    evaluate_dependencies_and_d36,
     evaluate_dependencies_and_d30,
     evaluate_dno_flow,
     load_rules,
@@ -67,9 +68,23 @@ TOOL_SPEC_DEFS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
     },
+    "check_dependencies_and_d36": {
+        "description": (
+            "Step 2 (Dependencies / D36): Evaluate third-party dependency flags and D36 workflow "
+            "status against config/rules.yaml. Returns whether the job is clear or blocked."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "job_ref": {"type": "string", "description": "Unique job reference identifier."},
+            },
+            "required": ["job_ref"],
+            "additionalProperties": False,
+        },
+    },
     "check_dependencies_and_d30": {
         "description": (
-            "Step 2 (Dependencies / D30): Evaluate third-party dependency flags and D30 workflow "
+            "Step 2 (Dependencies / D36): Evaluate third-party dependency flags and D36 workflow "
             "status against config/rules.yaml. Returns whether the job is clear or blocked."
         ),
         "parameters": {
@@ -215,7 +230,7 @@ TOOL_SPEC_DEFS: dict[str, dict[str, Any]] = {
                 "reason": {"type": "string", "description": "Clear explanation of why the job is escalated."},
                 "category": {
                     "type": "string",
-                    "enum": ["D30_OR_DEPENDENCY", "DNO_BLOCKED", "NO_SLOT_WITHIN_SLA", "VULNERABLE_APPROVAL", "POLICY_EXCEPTION"],
+                    "enum": ["D36_OR_DEPENDENCY", "D30_OR_DEPENDENCY", "DNO_BLOCKED", "NO_SLOT_WITHIN_SLA", "VULNERABLE_APPROVAL", "POLICY_EXCEPTION"],
                     "description": "Escalation category.",
                 },
                 "nearest_options": {
@@ -354,7 +369,8 @@ def get_job(ctx: AgentRunContext, job_ref: str) -> dict[str, Any]:
         "contact_preference": job.get("contact_preference"),
         "preferred_time_of_day": job.get("preferred_time_of_day") or "Morning",
         "sla_due_date": job.get("sla_due_date"),
-        "d30_status": job.get("d30_status"),
+        "d36_status": job.get("d36_status") or job.get("d30_status"),
+        "d30_status": job.get("d36_status") or job.get("d30_status"),
         "dependency_flags": job.get("dependency_flags"),
         "dno_status": job.get("dno_status"),
         "is_vulnerable": bool(job.get("is_vulnerable")),
@@ -362,16 +378,20 @@ def get_job(ctx: AgentRunContext, job_ref: str) -> dict[str, Any]:
     }
 
 
-def check_dependencies_and_d30(ctx: AgentRunContext, job_ref: str) -> dict[str, Any]:
-    """Check third-party dependencies and D30 workflow status using config/rules.yaml."""
+def check_dependencies_and_d36(ctx: AgentRunContext, job_ref: str) -> dict[str, Any]:
+    """Check third-party dependencies and D36 workflow status using config/rules.yaml."""
     job = get_job_record(job_ref, db_path=ctx.db_path)
     if not job:
         return {"ok": False, "error": f"Job '{job_ref}' not found."}
 
     rules = load_rules()
-    result = evaluate_dependencies_and_d30(job.get("d30_status", "CLEAR"), job.get("dependency_flags", "NONE"), rules)
+    status = job.get("d36_status") or job.get("d30_status", "CLEAR")
+    result = evaluate_dependencies_and_d36(status, job.get("dependency_flags", "NONE"), rules)
     ctx.dependencies_clear = result["clear"]
     return {"ok": True, "job_ref": job_ref, **result}
+
+
+check_dependencies_and_d30 = check_dependencies_and_d36
 
 
 def check_dno_flow(ctx: AgentRunContext, job_ref: str) -> dict[str, Any]:
@@ -465,6 +485,7 @@ def get_capacity(
             "day_of_week": s["day_of_week"],
             "time_window": s["time_window"],
             "engineer_id": s["engineer_id"],
+            "engineer_name": s.get("engineer_name") or s["engineer_id"],
             "supplier_affiliation": s["supplier_affiliation"],
             "regional_utilisation_pct": s["regional_utilisation_pct"],
         }
@@ -560,13 +581,14 @@ def rank_slots(
 
     if ranked_within_sla:
         best = dict(ranked_within_sla[0])
-        notes = [f"Within SLA (<= {sla_due_date[:10]})", f"Util {best['regional_utilisation_pct']}% <= {threshold}%"]
+        notes = [f"Within SLA (<= {sla_due_date[:10]})", f"Capacity utilisation {best['regional_utilisation_pct']}% (within {threshold:.0f}% threshold)"]
         if best["time_window"] == pref:
-            notes.append(f"Matches preferred window ({pref})")
+            notes.append(f"Matches customer preference ({pref})")
         if skipped_high_util_dates:
-            notes.append(f"Skipped high-utilisation dates (> {threshold}%): {', '.join(skipped_high_util_dates[:3])}")
+            notes.append(f"Skipped high-utilisation dates (> {threshold:.0f}%): {', '.join(skipped_high_util_dates[:3])}")
         if is_no_access and avoid_eng and best["engineer_id"] != avoid_eng:
-            notes.append(f"Avoided previous no-access engineer {avoid_eng}")
+            eng_label = best.get("engineer_name") or avoid_eng
+            notes.append(f"Avoided previous engineer ({eng_label})")
         best["selection_rationale"] = "; ".join(notes)
         ctx.proposed_slot = best
         result = {
@@ -580,7 +602,7 @@ def rank_slots(
     else:
         nearest = ranked_outside_sla[:nearest_count]
         why = (
-            f"No compliant slot (util <= {threshold}%) found on or before SLA due date {sla_due_date[:10]}; "
+            f"No compliant slot (utilisation <= {threshold:.0f}%) found on or before SLA due date {sla_due_date[:10]}; "
             f"surfaced {len(nearest)} nearest post-SLA options."
         )
         result = {
@@ -608,7 +630,7 @@ def rebook_job(
       1. slot_id must exist in get_capacity results for this run.
       2. Assisted mode cannot auto-execute without human approval.
       3. Vulnerable (PSR) customers ALWAYS require human approval.
-      4. Dependencies/D30 and DNO must not be blocked.
+      4. Dependencies/D36 and DNO must not be blocked.
     """
     job = get_job_record(job_ref, db_path=ctx.db_path)
     if not job:
@@ -621,7 +643,7 @@ def rebook_job(
         return {
             "ok": False,
             "guardrail_blocked": True,
-            "error": "Guardrail violation: cannot rebook a job with blocking D30, dependency, or DNO status.",
+            "error": "Guardrail violation: cannot rebook a job with blocking D36, dependency, or DNO status.",
         }
 
     if ctx.mode == "assisted" and not ctx.human_approved:
@@ -844,6 +866,7 @@ def write_audit(
 
 TOOL_FUNCTIONS: dict[str, Callable[..., dict[str, Any]]] = {
     "get_job": get_job,
+    "check_dependencies_and_d36": check_dependencies_and_d36,
     "check_dependencies_and_d30": check_dependencies_and_d30,
     "check_dno_flow": check_dno_flow,
     "raise_dno_request": raise_dno_request,

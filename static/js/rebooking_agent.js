@@ -7,7 +7,7 @@
 (() => {
   const CANONICAL_STEPS = [
     'Detect',
-    'Dependencies/D30',
+    'Dependencies/D36',
     'DNO',
     'Capacity',
     'Decide',
@@ -174,53 +174,93 @@
     }
   }
 
-  function renderQueue(jobs) {
-    const list = $('rbk-queue-list');
-    const count = $('rbk-queue-count');
-    if (!list) return;
-    if (count) count.textContent = String(jobs.length);
+  const STEP_TITLES = {
+    'Detect': 'Detect & Inspect Job',
+    'Dependencies/D36': 'D36 & Industry Dependencies',
+    'Dependencies/D30': 'D36 & Industry Dependencies',
+    'DNO': 'DNO Clearance Check',
+    'Capacity': 'Engineer Capacity Search',
+    'Decide': 'Optimal Slot Selection',
+    'Rebook': 'Commit Rebooking',
+    'Message': 'Customer Communication',
+    'Log': 'Compliance Audit Trail',
+  };
 
-    if (!jobs.length) {
-      list.innerHTML = '<div class="rbk-empty-state">No jobs match the current filters.</div>';
-      return;
-    }
+  const TOOL_HUMAN_NAMES = {
+    get_job: 'Detect Job Details',
+    check_dependencies_and_d36: 'Validate D36 & Dependencies',
+    check_dependencies_and_d30: 'Validate D36 & Dependencies',
+    check_dno_flow: 'Evaluate DNO Clearance',
+    raise_dno_request: 'Raise DNO Request',
+    get_capacity: 'Search Open Capacity',
+    rank_slots: 'Rank Candidate Slots',
+    rebook_job: 'Commit Rebooking',
+    draft_customer_message: 'Draft Customer Notification',
+    escalate_to_planner: 'Escalate to Planner',
+    write_audit: 'Record Audit Log',
+  };
 
-    list.innerHTML = jobs.map(j => {
-      const outcome = j.agent_outcome && j.agent_outcome !== 'PENDING' ? j.agent_outcome : 'PENDING';
-      const selectedCls = j.job_ref === state.selectedJobRef ? 'selected' : '';
-      const scenarioTag = j.scenario_tag
-        ? `<span class="rbk-pill rbk-pill-running">${esc(j.scenario_tag)}</span>`
-        : '';
-      const vulnTag = j.is_vulnerable
-        ? '<span class="rbk-pill rbk-pill-vuln">PSR / Vulnerable</span>'
-        : '';
-      const dnoTag = j.dno_status && j.dno_status !== 'NOT_REQUIRED'
-        ? `<span class="rbk-pill rbk-pill-dno">DNO: ${esc(j.dno_status)}</span>`
-        : '';
-
-      return `
-        <div class="rbk-queue-item ${selectedCls}" data-job-ref="${esc(j.job_ref)}">
-          <div class="rbk-q-top">
-            <span class="rbk-q-ref">${esc(j.job_ref)}</span>
-            <span class="${statusPillClass(outcome)}">${esc(outcome.replace(/_/g, ' '))}</span>
-          </div>
-          <div class="rbk-q-meta">
-            <strong>${esc(j.region_code)}</strong> &middot; ${esc(j.job_type)} &middot; ${esc(j.supplier_name)}<br/>
-            Reason: ${esc(j.reason)} &middot; SLA: ${esc(j.sla_due_date)}
-            ${j.scenario_label ? `<br/><em>${esc(j.scenario_label)}</em>` : ''}
-          </div>
-          <div class="rbk-q-tags">
-            <div class="rbk-q-tag-group">
-              ${scenarioTag}
-              ${vulnTag}
-              ${dnoTag}
-            </div>
-            <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-primary rbk-run-one-btn" data-run-job="${esc(j.job_ref)}">Run Agent</button>
-          </div>
-        </div>
-      `;
-    }).join('');
+  function humanToolName(tool) {
+    if (!tool) return '--';
+    return TOOL_HUMAN_NAMES[tool] || String(tool).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
+
+  const REGION_HUMAN = {
+    NW: 'North West',
+    NE: 'North East',
+    MID: 'Midlands',
+    SE: 'South East',
+    SW: 'South West',
+    WAL: 'Wales',
+    SCO: 'Scotland',
+    YRK: 'Yorkshire',
+  };
+
+  const JOB_TYPE_HUMAN = {
+    NEW_INSTALL: 'New Installation',
+    EXCHANGE: 'Meter Exchange',
+    REPAIR: 'Repair',
+    REMOVAL: 'Removal',
+  };
+
+  const SKILL_HUMAN = {
+    SMETS2_ELEC: 'SMETS2 Electric',
+    SMETS2_GAS: 'SMETS2 Gas',
+    SMETS2_INSTALL: 'SMETS2 Installation',
+    SMETS_REPAIR: 'SMETS Repair',
+    DUAL_FUEL: 'Dual Fuel',
+    IHD_TECH: 'IHD Technology',
+  };
+
+  const CODE_HUMAN = {
+    NONE: 'None',
+    CLEAR: 'Clear',
+    COMPLETE: 'Complete',
+    NOT_REQUIRED: 'Not Required',
+    PENDING: 'Pending DNO',
+    PENDING_REQUESTED: 'Requested (Pending DNO)',
+    BLOCKED: 'Blocked',
+    REJECTED: 'Rejected',
+    PENDING_SUPPLIER: 'Pending Supplier',
+    DATA_MISMATCH: 'Data Mismatch',
+    EXCEPTION: 'Exception',
+    ASBESTOS_CHECK: 'Asbestos Check',
+    LANDLORD_CONSENT: 'Landlord Consent',
+    SCAFFOLDING: 'Scaffolding',
+    REVENUE_PROTECTION_HOLD: 'Revenue Protection Hold',
+    COMMS_HUB_SHORTAGE: 'Comms Hub Shortage',
+    THIRD_PARTY_ACCESS_PERMIT: 'Third-Party Access Permit',
+    IHD_FOLLOWUP: 'IHD Follow-up',
+    D36_OR_DEPENDENCY: 'D36 / Dependency Block',
+    D30_OR_DEPENDENCY: 'D36 / Dependency Block',
+    DNO_BLOCKED: 'DNO Blocked',
+    NO_SLOT_WITHIN_SLA: 'No Slot Within SLA',
+    VULNERABLE_APPROVAL: 'Vulnerable Approval',
+    POLICY_EXCEPTION: 'Policy Exception',
+    SIMULATED_SENT: 'Simulated Send',
+    assisted: 'Assisted',
+    autonomous: 'Autonomous',
+  };
 
   const FIELD_LABELS = {
     job_ref: 'Job Ref',
@@ -246,7 +286,8 @@
     search_start: 'Window Start',
     search_end: 'Window End',
     sample_slots: 'Earliest Options',
-    d30_status: 'D30 Workflow',
+    d36_status: 'D36 Workflow',
+    d30_status: 'D36 Workflow',
     dependency_flags: 'Dependencies',
     blocked: 'Blocked',
     blocking_reasons: 'Blocking Reasons',
@@ -275,11 +316,74 @@
     audit_id: 'Audit Ref',
   };
 
-  const SKIP_IO_KEYS = new Set(['ok', 'why', 'run_id', 'audit_entry', 'message_preview']);
+  const SKIP_IO_KEYS = new Set([
+    'ok',
+    'why',
+    'run_id',
+    'audit_entry',
+    'audit_id',
+    'job_ref',
+    'rebook_flag',
+    'candidate_slot_ids',
+    'candidate_slots',
+    'daily_utilisation',
+    'message_preview',
+  ]);
 
   function humanLabel(key) {
     if (FIELD_LABELS[key]) return FIELD_LABELS[key];
     return String(key).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function renderQueue(jobs) {
+    const list = $('rbk-queue-list');
+    const count = $('rbk-queue-count');
+    if (!list) return;
+    if (count) count.textContent = String(jobs.length);
+
+    if (!jobs.length) {
+      list.innerHTML = '<div class="rbk-empty-state">No jobs match the current filters.</div>';
+      return;
+    }
+
+    list.innerHTML = jobs.map(j => {
+      const outcome = j.agent_outcome && j.agent_outcome !== 'PENDING' ? j.agent_outcome : 'PENDING';
+      const selectedCls = j.job_ref === state.selectedJobRef ? 'selected' : '';
+      const scenarioTag = j.scenario_tag
+        ? `<span class="rbk-pill rbk-pill-running">${esc(j.scenario_tag)}</span>`
+        : '';
+      const vulnTag = j.is_vulnerable
+        ? '<span class="rbk-pill rbk-pill-vuln">PSR / Vulnerable</span>'
+        : '';
+      const dnoTag = j.dno_status && j.dno_status !== 'NOT_REQUIRED'
+        ? `<span class="rbk-pill rbk-pill-dno">DNO: ${esc(CODE_HUMAN[j.dno_status] || j.dno_status)}</span>`
+        : '';
+
+      const reg = REGION_HUMAN[j.region_code] || j.region_code;
+      const jt = JOB_TYPE_HUMAN[j.job_type] || j.job_type;
+
+      return `
+        <div class="rbk-queue-item ${selectedCls}" data-job-ref="${esc(j.job_ref)}">
+          <div class="rbk-q-top">
+            <span class="rbk-q-ref">${esc(j.job_ref)}</span>
+            <span class="${statusPillClass(outcome)}">${esc(outcome.replace(/_/g, ' '))}</span>
+          </div>
+          <div class="rbk-q-meta">
+            <strong>${esc(reg)}</strong> &middot; ${esc(jt)} &middot; ${esc(j.supplier_name)}<br/>
+            Reason: ${esc(j.reason)} &middot; SLA: ${esc(j.sla_due_date)}
+            ${j.scenario_label ? `<br/><em>${esc(j.scenario_label)}</em>` : ''}
+          </div>
+          <div class="rbk-q-tags">
+            <div class="rbk-q-tag-group">
+              ${scenarioTag}
+              ${vulnTag}
+              ${dnoTag}
+            </div>
+            <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-primary rbk-run-one-btn" data-run-job="${esc(j.job_ref)}">Run Agent</button>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   function formatSlotSummary(slot) {
@@ -321,7 +425,7 @@
         const items = val.slice(0, 3).map(formatSlotSummary);
         return val.length > 3 ? `${items.join(' | ')} (+${val.length - 3} more)` : items.join(' | ');
       }
-      const shown = val.slice(0, 4).map(x => String(x));
+      const shown = val.slice(0, 4).map(x => CODE_HUMAN[String(x)] || String(x));
       return val.length > 4 ? `${shown.join(', ')} (+${val.length - 4} more)` : shown.join(', ');
     }
     if (typeof val === 'object') {
@@ -329,26 +433,27 @@
         return formatSlotSummary(val);
       }
       return Object.entries(val)
-        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .filter(([sk, sv]) => !SKIP_IO_KEYS.has(sk) && sv !== null && sv !== undefined && sv !== '')
         .slice(0, 4)
         .map(([sk, sv]) => `${humanLabel(sk)}: ${formatIOValue(sk, sv)}`)
         .join('; ') || '--';
     }
     const str = String(val);
     if (key === 'slot_id') return formatSlotIdText(str);
-    if (str === 'NONE') return 'None';
-    if (str === 'NOT_REQUIRED') return 'Not required';
-    if (str === 'PENDING_REQUESTED') return 'Requested (pending DNO)';
-    if (str === 'assisted') return 'Assisted';
-    if (str === 'autonomous') return 'Autonomous';
+    if (key === 'region_code' || key === 'region') return REGION_HUMAN[str] || str;
+    if (key === 'job_type') return JOB_TYPE_HUMAN[str] || str;
+    if (key === 'required_skill') return SKILL_HUMAN[str] || str.replace(/_/g, ' ');
+    if (CODE_HUMAN[str]) return CODE_HUMAN[str];
     if (str.length > 140) return str.slice(0, 137) + '...';
     return str;
   }
 
   function compactKV(obj) {
     if (!obj || typeof obj !== 'object') return '--';
+    const hasD36 = 'd36_status' in obj;
     const entries = Object.entries(obj).filter(([k, v]) => {
       if (SKIP_IO_KEYS.has(k)) return false;
+      if (hasD36 && k === 'd30_status') return false;
       if (k === 'nearest_options_count' && Array.isArray(obj.nearest_options) && obj.nearest_options.length) return false;
       return v !== null && v !== undefined && v !== '';
     });
@@ -385,8 +490,7 @@
         <div class="rbk-step-card status-${esc(st)}">
           <div class="rbk-step-head">
             <div>
-              <span class="rbk-step-title">${idx + 1}. ${esc(item.step)}</span>
-              ${item.tool ? `<span class="rbk-step-tool">(${esc(item.tool)})</span>` : ''}
+              <span class="rbk-step-title">${idx + 1}. ${esc(STEP_TITLES[item.step] || item.step)}</span>
             </div>
             <span class="${statusPillClass(st)}">${esc(st.replace(/_/g, ' '))}</span>
           </div>
@@ -422,7 +526,10 @@
     }
 
     if (selectedHdr) {
-      selectedHdr.textContent = `${job.job_ref} • ${job.region_name || job.region_code} • ${job.job_type} • Pref: ${job.contact_preference} (${job.preferred_time_of_day})`;
+      const reg = job.region_name || REGION_HUMAN[job.region_code] || job.region_code;
+      const jt = JOB_TYPE_HUMAN[job.job_type] || job.job_type;
+      const prefCh = CODE_HUMAN[job.contact_preference] || job.contact_preference;
+      selectedHdr.textContent = `${job.job_ref} • ${reg} • ${jt} • Preference: ${prefCh} (${job.preferred_time_of_day || 'Any'})`;
     }
 
     const isAwaiting = job.agent_outcome === 'AWAITING_APPROVAL' || job.status === 'Awaiting Approval';
@@ -474,9 +581,9 @@
       if (slot && slot.slot_id) {
         const committed = Boolean(job && job.rebook_flag);
         slotCard.innerHTML = `
-          <div><strong>${committed ? 'Confirmed Rebooked Slot' : 'Proposed Slot'}:</strong> <code>${esc(slot.slot_id)}</code></div>
+          <div><strong>${committed ? 'Confirmed Rebooked Slot' : 'Proposed Slot'}:</strong> <strong>${esc(slot.slot_date)}</strong> &middot; <strong>${esc(slot.time_window)}</strong></div>
           <div style="margin-top:4px;">
-            Date: <strong>${esc(slot.slot_date)}</strong> &middot; Window: <strong>${esc(slot.time_window)}</strong> &middot; Engineer: <strong>${esc(slot.engineer_name || slot.engineer_id)}</strong>
+            Engineer: <strong>${esc(slot.engineer_name || slot.engineer_id || 'Assigned Engineer')}</strong>
           </div>
           ${slot.regional_utilisation_pct !== undefined ? `<div style="margin-top:2px;color:var(--text-secondary);">Region Utilisation: <strong>${esc(slot.regional_utilisation_pct)}%</strong> &middot; SLA: ${slot.within_sla ? 'Within SLA' : 'Check SLA'}</div>` : ''}
         `;
@@ -616,7 +723,7 @@
       const optHtml = e.status === 'OPEN' && opts.length
         ? `<div class="rbk-esc-options">${opts.map(opt => `
             <div class="rbk-esc-opt">
-              <span><strong>${esc(opt.slot_date)}</strong> (${esc(opt.time_window)}) &middot; ${esc(opt.engineer_id)} &middot; Util ${esc(opt.regional_utilisation_pct)}%</span>
+              <span><strong>${esc(opt.slot_date)}</strong> (${esc(opt.time_window)}) &middot; ${esc(opt.engineer_name || opt.engineer_id)} &middot; Utilisation ${esc(opt.regional_utilisation_pct)}%</span>
               <button type="button" class="rbk-btn rbk-btn-sm rbk-btn-ok rbk-esc-book-btn" data-esc-id="${esc(e.escalation_id)}" data-slot-id="${esc(opt.slot_id)}">Book Option</button>
             </div>
           `).join('')}</div>`
@@ -629,7 +736,7 @@
         <div class="rbk-esc-card">
           <div class="rbk-esc-head">
             <div>
-              <strong>${esc(e.job_ref)}</strong> &middot; <span class="rbk-pill rbk-pill-blocked">${esc(e.category)}</span> &middot; ${esc(e.region_code)}
+              <strong>${esc(e.job_ref)}</strong> &middot; <span class="rbk-pill rbk-pill-blocked">${esc(CODE_HUMAN[e.category] || (e.category || '').replace(/_/g, ' '))}</span> &middot; ${esc(REGION_HUMAN[e.region_code] || e.region_code)}
             </div>
             ${resolveBtn}
           </div>
@@ -653,7 +760,7 @@
         <td>${esc((a.created_at || '').replace('T', ' ').slice(0, 19))}</td>
         <td><strong>${esc(a.job_ref)}</strong></td>
         <td>${esc(a.step_name)}</td>
-        <td><code>${esc(a.tool_name)}</code></td>
+        <td>${esc(humanToolName(a.tool_name))}</td>
         <td><span class="${statusPillClass(a.status)}">${esc((a.status || '').replace(/_/g, ' '))}</span></td>
         <td>${esc(a.reasoning_summary || a.decision || '')}</td>
       </tr>
@@ -717,7 +824,8 @@
     state.timelineByStep = emptyTimelineMap();
     if (Array.isArray(job.last_reasoning) && job.last_reasoning.length) {
       job.last_reasoning.forEach(item => {
-        if (item && item.step) state.timelineByStep[item.step] = item;
+        const stepName = item && (item.step === 'Dependencies/D30' ? 'Dependencies/D36' : item.step);
+        if (stepName) state.timelineByStep[stepName] = item;
       });
     }
 
@@ -753,8 +861,9 @@
 
       es.addEventListener('step_started', e => {
         const d = JSON.parse(e.data);
-        state.timelineByStep[d.step] = {
-          step: d.step,
+        const stepKey = d.step === 'Dependencies/D30' ? 'Dependencies/D36' : d.step;
+        state.timelineByStep[stepKey] = {
+          step: stepKey,
           tool: d.tool,
           status: 'running',
           inputs: {},
@@ -766,7 +875,8 @@
 
       es.addEventListener('step_completed', e => {
         const d = JSON.parse(e.data);
-        state.timelineByStep[d.step] = d;
+        const stepKey = d.step === 'Dependencies/D30' ? 'Dependencies/D36' : d.step;
+        state.timelineByStep[stepKey] = d;
         renderTimeline();
       });
 
@@ -775,7 +885,10 @@
         closeActiveStream();
         const d = JSON.parse(e.data);
         if (Array.isArray(d.timeline)) {
-          d.timeline.forEach(s => { state.timelineByStep[s.step] = s; });
+          d.timeline.forEach(s => {
+            const stepKey = s.step === 'Dependencies/D30' ? 'Dependencies/D36' : s.step;
+            state.timelineByStep[stepKey] = s;
+          });
         }
         state.isRunning = false;
         setRunStatus(`${jobRef}: ${d.outcome}`, false);

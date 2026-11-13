@@ -44,6 +44,7 @@ from engine.date_windows import (
     rolling_forecast_window,
     rolling_generation_profile,
     parse_iso_date,
+    week_start,
 )
 
 INPUTS_DIR  = PROJECT_ROOT / "data" / "inputs"
@@ -89,13 +90,14 @@ def _csv_dates_stale(actual_start: date, actual_end: date, forecast_start: date)
 
         has_actual   = False
         has_forecast = not need_forecast   # skip forecast check when not required
+        valid_start = week_start(actual_start) if date_field == "week_start" else actual_start
         try:
             with open(path, encoding="utf-8-sig", newline="") as f:
                 for row in csv.DictReader(f):
                     d = parse_iso_date(row.get(date_field, ""))
                     if d is None:
                         continue
-                    if actual_start <= d <= actual_end:
+                    if valid_start <= d <= actual_end:
                         has_actual = True
                     if not has_forecast and d >= forecast_start:
                         has_forecast = True
@@ -195,7 +197,7 @@ def print_status() -> None:
     import csv
     csv_checks = {
         "master_operations.csv":      ("requested_date", actual_start, actual_end),
-        "booking_journey.csv":        ("week_start",     actual_start, actual_end),
+        "booking_journey.csv":        ("week_start",     week_start(actual_start), actual_end),
         "channel_volume.csv":         ("contact_date",   actual_start, actual_end),
         "forecast_baseline_2025.csv": ("forecast_date",  actual_start, actual_end),
         "field_engineers.csv":        ("year",           None,         None),
@@ -267,7 +269,7 @@ def main() -> None:
         return
 
     reason = "forced by --force flag" if args.force else f"data stale for anchor {current_anchor}"
-    print(f"  Rolling existing CSV dates ({reason})...")
+    print(f"  Generating data and replacing CSV files ({reason})...")
 
     if not _acquire_lock():
         print("  ERROR: Could not acquire refresh lock within timeout. Another process may be running.")
@@ -275,15 +277,30 @@ def main() -> None:
 
     t0 = time.time()
     try:
-        from engine.date_roller import roll_existing_data_dates
-        roll_result = roll_existing_data_dates()
+        from engine.data_generator import generate_all
+        generate_all()
+
+        try:
+            from scripts.augment_rebooking_data import generate_rebooking_datasets
+            generate_rebooking_datasets()
+        except Exception as aug_err:
+            print(f"  Warning during rebooking augmentation: {aug_err}")
+
+        try:
+            from engine.ingestion import build_sqlite_store
+            build_sqlite_store(force=True)
+            from engine.rebooking_store import seed_initial_data
+            seed_initial_data(force=True)
+        except Exception as ing_err:
+            print(f"  Warning during SQLite store build: {ing_err}")
+
         elapsed = round(time.time() - t0, 1)
-        print(f"\n  Done in {elapsed}s. Month delta applied: {roll_result['month_delta']}. All CSVs now cover:")
+        print(f"\n  Done in {elapsed}s. All CSVs now cover:")
         print(f"    Actuals  : {actual_start} – {actual_end}")
         forecast_start2, forecast_end2 = rolling_forecast_window()
         print(f"    Forecast : {forecast_start2} – {forecast_end2}")
     except Exception as exc:
-        print(f"\n  ERROR during date roll: {exc}")
+        print(f"\n  ERROR during data generation: {exc}")
         sys.exit(1)
     finally:
         _release_lock()

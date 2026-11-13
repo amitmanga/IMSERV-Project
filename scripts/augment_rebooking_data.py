@@ -7,7 +7,7 @@ and generates two cleanly separated operational datasets:
   - data/inputs/rebooking_slots_28d.csv
 
 Fixed RANDOM_SEED = 42 ensures deterministic synthetic augmentation for:
-  - DNO status, D30 workflow status, third-party dependency flags
+  - DNO status, D36 workflow status, third-party dependency flags
   - Customer contact preference & preferred time of day (synthetic aliases only)
   - SLA due dates and Priority Services Register (vulnerability) flags
   - Forward 28-day engineer-slot availability & regional daily utilisation
@@ -53,6 +53,7 @@ DEMO_SCENARIOS = [
         "original_engineer_id": "ENG-NW-002",
         "customer_alias": "Customer #A101",
         "sla_days_offset": 10,
+        "d36_status": "CLEAR",
         "d30_status": "CLEAR",
         "dependency_flags": "NONE",
         "dno_status": "NOT_REQUIRED",
@@ -80,6 +81,7 @@ DEMO_SCENARIOS = [
         "original_engineer_id": "ENG-SE-001",
         "customer_alias": "Customer #B204",
         "sla_days_offset": 12,
+        "d36_status": "CLEAR",
         "d30_status": "CLEAR",
         "dependency_flags": "NONE",
         "dno_status": "NOT_REQUIRED",
@@ -107,6 +109,7 @@ DEMO_SCENARIOS = [
         "original_engineer_id": "ENG-NE-001",
         "customer_alias": "Customer #C309",
         "sla_days_offset": 18,
+        "d36_status": "CLEAR",
         "d30_status": "CLEAR",
         "dependency_flags": "NONE",
         "dno_status": "PENDING",
@@ -115,8 +118,8 @@ DEMO_SCENARIOS = [
     },
     {
         "job_ref": "RBK-DEMO-D",
-        "scenario_tag": "D_BLOCKED_D30_DEP",
-        "scenario_label": "(d) Blocked by D30 / Dependency",
+        "scenario_tag": "D_BLOCKED_D36_DEP",
+        "scenario_label": "(d) Blocked by D36 / Dependency",
         "supplier_name": "EDF Energy Customers Ltd",
         "region_code": "YRK",
         "region_name": "Yorkshire",
@@ -134,6 +137,7 @@ DEMO_SCENARIOS = [
         "original_engineer_id": "ENG-YRK-001",
         "customer_alias": "Customer #D412",
         "sla_days_offset": 7,
+        "d36_status": "DATA_MISMATCH",
         "d30_status": "DATA_MISMATCH",
         "dependency_flags": "ASBESTOS_CHECK",
         "dno_status": "NOT_REQUIRED",
@@ -161,6 +165,7 @@ DEMO_SCENARIOS = [
         "original_engineer_id": "ENG-WAL-001",
         "customer_alias": "Customer #E515",
         "sla_days_offset": 2,
+        "d36_status": "CLEAR",
         "d30_status": "CLEAR",
         "dependency_flags": "NONE",
         "dno_status": "NOT_REQUIRED",
@@ -188,6 +193,7 @@ DEMO_SCENARIOS = [
         "original_engineer_id": "ENG-SW-001",
         "customer_alias": "Customer #F620",
         "sla_days_offset": 10,
+        "d36_status": "CLEAR",
         "d30_status": "CLEAR",
         "dependency_flags": "NONE",
         "dno_status": "NOT_REQUIRED",
@@ -219,6 +225,7 @@ JOB_FIELDNAMES = [
     "abort_reason",
     "original_engineer_id",
     "customer_alias",
+    "d36_status",
     "d30_status",
     "dependency_flags",
     "dno_status",
@@ -352,7 +359,8 @@ def generate_rebooking_datasets(anchor_date: date | None = None) -> dict[str, in
             "abort_reason": demo["abort_reason"],
             "original_engineer_id": demo["original_engineer_id"],
             "customer_alias": demo["customer_alias"],
-            "d30_status": demo["d30_status"],
+            "d36_status": demo.get("d36_status") or demo.get("d30_status", "CLEAR"),
+            "d30_status": demo.get("d36_status") or demo.get("d30_status", "CLEAR"),
             "dependency_flags": demo["dependency_flags"],
             "dno_status": demo["dno_status"],
             "dno_ref": "",
@@ -369,9 +377,9 @@ def generate_rebooking_datasets(anchor_date: date | None = None) -> dict[str, in
         pref_channel = _PREF_CHANNEL_MAP.get(channel, "SMS")
         pref_window = rng.choice(["Morning", "Afternoon", "Evening"])
 
-        # Weighted synthetic D30/dependency/DNO/PSR realism
-        d30_roll = rng.random()
-        d30_status = "CLEAR" if d30_roll < 0.85 else rng.choice(["PENDING_SUPPLIER", "REJECTED", "DATA_MISMATCH"])
+        # Weighted synthetic D36/dependency/DNO/PSR realism
+        d36_roll = rng.random()
+        d36_status = "CLEAR" if d36_roll < 0.85 else rng.choice(["PENDING_SUPPLIER", "REJECTED", "DATA_MISMATCH"])
 
         dep_roll = rng.random()
         dep_flag = "NONE" if dep_roll < 0.86 else rng.choice(["LANDLORD_CONSENT", "SCAFFOLDING", "ASBESTOS_CHECK"])
@@ -408,7 +416,8 @@ def generate_rebooking_datasets(anchor_date: date | None = None) -> dict[str, in
             "abort_reason": raw.get("abort_reason", ""),
             "original_engineer_id": raw.get("engineer_id") or "",
             "customer_alias": f"Customer #{1000 + idx}",
-            "d30_status": d30_status,
+            "d36_status": d36_status,
+            "d30_status": d36_status,
             "dependency_flags": dep_flag,
             "dno_status": dno_status,
             "dno_ref": "",

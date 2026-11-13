@@ -2,7 +2,7 @@
 # IMSERV / EXL Smart Metering — Rebooking Agent Business Rules Configuration
 # ==============================================================================
 # These rules separate operational assumptions from agent code so planners can
-# adjust DNO lead times, D30 clearing rules, blocking dependencies, SLA targets,
+# adjust DNO lead times, D36 clearing rules, blocking dependencies, SLA targets,
 # and slot-ranking thresholds without touching Python logic.
 
 dno:
@@ -36,14 +36,14 @@ dno:
   blocking_statuses:
     - BLOCKED
 
-d30:
-  # UK Smart Metering D30 / industry data flow statuses that allow rebooking.
+d36:
+  # UK Smart Metering D36 / industry data flow statuses that allow rebooking.
   clear_statuses:
     - CLEAR
     - COMPLETE
     - NOT_REQUIRED
 
-  # D30 statuses that indicate industry flow exceptions or supplier mismatches
+  # D36 statuses that indicate industry flow exceptions or supplier mismatches
   # and must block rebooking until resolved by a planner.
   blocking_statuses:
     - REJECTED

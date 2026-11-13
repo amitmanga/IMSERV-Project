@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T16:21:43.714633Z",
+  "generated_at": "2026-11-13T13:42:55.112626Z",
   "source_of_truth": "master_operations.csv",
   "relationship_model": {
     "master_operations.csv": "Job-level ledger keyed by job_ref with supplier, region, patch, channel, engineer, status, dates, revenue, and cost.",
@@ -38,6 +38,5 @@
     "WAL",
     "SCO",
     "YRK"
-  ],
-  "date_refresh_mode": "date-only"
+  ]
 }

@@ -1154,14 +1154,14 @@
                 <input type="text" class="filter-select rbk-audit-input" id="rbk-audit-job" placeholder="Filter by Job Ref (e.g. RBK-DEMO-A)" />
                 <select class="filter-select" id="rbk-audit-step">
                   <option value="">All Steps</option>
-                  <option value="Detect">Detect</option>
-                  <option value="Dependencies/D30">Dependencies/D30</option>
-                  <option value="DNO">DNO</option>
-                  <option value="Capacity">Capacity</option>
-                  <option value="Decide">Decide</option>
-                  <option value="Rebook">Rebook</option>
-                  <option value="Message">Message</option>
-                  <option value="Log">Log</option>
+                  <option value="Detect">Detect &amp; Inspect</option>
+                  <option value="Dependencies/D36">Dependencies &amp; D36</option>
+                  <option value="DNO">DNO Clearance</option>
+                  <option value="Capacity">Capacity Search</option>
+                  <option value="Decide">Slot Selection</option>
+                  <option value="Rebook">Commit Rebooking</option>
+                  <option value="Message">Customer Notification</option>
+                  <option value="Log">Compliance Audit</option>
                 </select>
                 <select class="filter-select" id="rbk-audit-status">
                   <option value="">All Statuses</option>
@@ -1180,7 +1180,7 @@
                       <th class="rbk-col-time">Time (UTC)</th>
                       <th class="rbk-col-job">Job Ref</th>
                       <th class="rbk-col-step">Step</th>
-                      <th class="rbk-col-tool">Tool</th>
+                      <th class="rbk-col-tool">Action</th>
                       <th class="rbk-col-status">Status</th>
                       <th class="rbk-col-why">Why</th>
                     </tr>
@@ -1268,7 +1268,7 @@
 <script src="/static/js/roster.js?v=8"></script>
 <script src="/static/js/longterm.js?v=2"></script>
 <script src="/static/js/meterview.js?v=1"></script>
-<script src="/static/js/rebooking_agent.js?v=6"></script>
+<script src="/static/js/rebooking_agent.js?v=7"></script>
 <script src="/static/js/app.js?v=2"></script>
 
 </body>

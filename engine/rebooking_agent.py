@@ -42,7 +42,7 @@ from engine.rules_loader import load_rules
 
 CANONICAL_STEPS = [
     "Detect",
-    "Dependencies/D30",
+    "Dependencies/D36",
     "DNO",
     "Capacity",
     "Decide",
@@ -53,7 +53,8 @@ CANONICAL_STEPS = [
 
 TOOL_TO_STEP = {
     "get_job": "Detect",
-    "check_dependencies_and_d30": "Dependencies/D30",
+    "check_dependencies_and_d36": "Dependencies/D36",
+    "check_dependencies_and_d30": "Dependencies/D36",
     "check_dno_flow": "DNO",
     "raise_dno_request": "DNO",
     "get_capacity": "Capacity",
@@ -78,7 +79,7 @@ def _system_prompt(mode: str, job_ref: str, rules: dict[str, Any]) -> str:
         f"You are the EXL Smart Metering Rebooking Agent. Today's date is {date.today().isoformat()}. "
         "Handle a cancelled or aborted job end-to-end by calling the provided tools in order:\n"
         "1. Call get_job to detect job details, reason, SLA due date, contact preference, and vulnerability.\n"
-        "2. Call check_dependencies_and_d30. If blocked, call escalate_to_planner (category D30_OR_DEPENDENCY) "
+        "2. Call check_dependencies_and_d36. If blocked, call escalate_to_planner (category D36_OR_DEPENDENCY) "
         "and write_audit, then stop.\n"
         "3. Call check_dno_flow. If BLOCKED, escalate_to_planner (category DNO_BLOCKED) and write_audit, then stop. "
         f"If PENDING, call raise_dno_request (lead time {lead_days} days) and search capacity starting on/after "
@@ -151,25 +152,25 @@ class MockToolCallingLLM:
 
         if last_name == "get_job":
             return self._tc(
-                "check_dependencies_and_d30",
+                "check_dependencies_and_d36",
                 {"job_ref": self.job_ref},
-                "Checking D30 workflow status and third-party dependencies.",
+                "Checking D36 workflow status and third-party dependencies.",
             )
 
-        if last_name == "check_dependencies_and_d30":
+        if last_name in ("check_dependencies_and_d36", "check_dependencies_and_d30"):
             if last_data.get("blocked"):
                 self.state["terminal_status"] = "ESCALATED"
-                self.state["terminal_decision"] = "Escalated due to blocking D30/dependency"
-                self.state["terminal_reason"] = last_data.get("summary", "Blocked by D30/dependency")
+                self.state["terminal_decision"] = "Escalated due to blocking D36/dependency"
+                self.state["terminal_reason"] = last_data.get("summary", "Blocked by D36/dependency")
                 return self._tc(
                     "escalate_to_planner",
                     {
                         "job_ref": self.job_ref,
-                        "reason": last_data.get("summary", "Blocked by D30/dependency"),
-                        "category": "D30_OR_DEPENDENCY",
+                        "reason": last_data.get("summary", "Blocked by D36/dependency"),
+                        "category": "D36_OR_DEPENDENCY",
                         "nearest_options": [],
                     },
-                    "Dependencies or D30 blocked; escalating to planner.",
+                    "Dependencies or D36 blocked; escalating to planner.",
                 )
             return self._tc("check_dno_flow", {"job_ref": self.job_ref}, "Evaluating DNO clearance status.")
 
@@ -300,8 +301,9 @@ class MockToolCallingLLM:
                     "Vulnerable customer guardrail triggered; flagging for mandatory human approval.",
                 )
 
+            eng_label = best.get("engineer_name") or best.get("engineer_id")
             self.state["terminal_status"] = "AWAITING_APPROVAL"
-            self.state["terminal_decision"] = f"Proposed {best['slot_date']} {best['time_window']} with {best['engineer_id']}"
+            self.state["terminal_decision"] = f"Proposed {best['slot_date']} ({best['time_window']}) with {eng_label}"
             self.state["terminal_reason"] = last_data.get("why", "Awaiting planner approval in Assisted mode")
             return self._tc(
                 "draft_customer_message",
@@ -325,8 +327,9 @@ class MockToolCallingLLM:
                 if dno_info
                 else None
             )
+            eng_label = best.get("engineer_name") or best.get("engineer_id")
             self.state["terminal_status"] = "REBOOKED"
-            self.state["terminal_decision"] = f"Rebooked to {best['slot_date']} {best['time_window']} ({best['engineer_id']})"
+            self.state["terminal_decision"] = f"Rebooked to {best['slot_date']} ({best['time_window']}) with {eng_label}"
             self.state["terminal_reason"] = self.state["rank_slots"].get("why", "Auto-rebooked within SLA")
             return self._tc(
                 "draft_customer_message",
@@ -392,41 +395,78 @@ class MockToolCallingLLM:
 
 # ─── Step Card Builder & Reasoning Summaries ─────────────────────────────────
 
+REGION_DISPLAY_NAMES = {
+    "NW": "North West",
+    "NE": "North East",
+    "MID": "Midlands",
+    "SE": "South East",
+    "SW": "South West",
+    "WAL": "Wales",
+    "SCO": "Scotland",
+    "YRK": "Yorkshire",
+}
+
+SKILL_DISPLAY_NAMES = {
+    "SMETS2_ELEC": "SMETS2 Electric",
+    "SMETS2_GAS": "SMETS2 Gas",
+    "SMETS2_INSTALL": "SMETS2 Installation",
+    "SMETS_REPAIR": "SMETS Repair",
+    "DUAL_FUEL": "Dual Fuel",
+    "IHD_TECH": "IHD Technology",
+}
+
+JOB_TYPE_DISPLAY_NAMES = {
+    "NEW_INSTALL": "New Installation",
+    "EXCHANGE": "Meter Exchange",
+    "REPAIR": "Repair",
+    "REMOVAL": "Removal",
+}
+
+
 def _one_line_why(tool_name: str, args: dict[str, Any], result: dict[str, Any], ctx: AgentRunContext) -> str:
     if not result.get("ok"):
         return result.get("error", "Step failed")
     if tool_name == "get_job":
-        vuln = " | PSR Vulnerable" if result.get("is_vulnerable") else ""
-        return f"{result.get('original_status')} ({result.get('reason')}), {result.get('job_type')} in {result.get('region_code')}, SLA {result.get('sla_due_date')}{vuln}."
-    if tool_name == "check_dependencies_and_d30":
+        vuln = " | Priority Services (PSR)" if result.get("is_vulnerable") else ""
+        orig_st = (result.get("original_status") or "").title()
+        jt = JOB_TYPE_DISPLAY_NAMES.get(result.get("job_type"), (result.get("job_type") or "").replace("_", " ").title())
+        reg = REGION_DISPLAY_NAMES.get(result.get("region_code"), result.get("region_code"))
+        return f"{orig_st} ({result.get('reason')}), {jt} in {reg}, SLA due {result.get('sla_due_date')}{vuln}."
+    if tool_name in ("check_dependencies_and_d36", "check_dependencies_and_d30"):
         return result.get("summary", "")
     if tool_name == "check_dno_flow":
         st = result.get("dno_status")
         if st == "PENDING":
             return f"DNO involvement required ({result.get('default_lead_time_days')}d default lead time)."
         if st == "BLOCKED":
-            return "DNO status is BLOCKED — cannot proceed."
-        return f"DNO status is {st}; no delay required."
+            return "DNO status is Blocked — cannot proceed without clearance."
+        if st == "NOT_REQUIRED":
+            return "DNO clearance not required for this job type."
+        if st == "COMPLETE":
+            return "DNO clearance completed."
+        return f"DNO status is {st}."
     if tool_name == "raise_dno_request":
         return f"Simulated DNO request {result.get('dno_ref')} raised; earliest slot {result.get('earliest_eligible_date')}."
     if tool_name == "get_capacity":
+        raw_skill = result.get("required_skill") or ""
+        skill = SKILL_DISPLAY_NAMES.get(raw_skill, raw_skill.replace("_", " ").title())
+        reg = REGION_DISPLAY_NAMES.get(result.get("region_code"), result.get("region_code"))
         return (
-            f"Found {result.get('total_candidate_slots')} open {result.get('required_skill')} slots in "
-            f"{result.get('region_code')} ({result.get('search_start')} to {result.get('search_end')})."
+            f"Found {result.get('total_candidate_slots')} open {skill} slots in "
+            f"{reg} ({result.get('search_start')} to {result.get('search_end')})."
         )
     if tool_name == "rank_slots":
         return result.get("why", "Slots ranked.")
     if tool_name == "rebook_job":
-        return (
-            f"Rebooked to {result.get('rebooked_date')} {result.get('time_window')} "
-            f"with {result.get('engineer_id')} (rebook_flag=True)."
-        )
+        eng = result.get('engineer_name') or result.get('engineer_id') or 'engineer'
+        return f"Rebooked to {result.get('rebooked_date')} ({result.get('time_window')}) with {eng}."
     if tool_name == "draft_customer_message":
-        return f"Drafted {result.get('channel')} message ({result.get('message_status')})."
+        return f"Drafted {result.get('channel')} notification (Simulated send)."
     if tool_name == "escalate_to_planner":
         opts = len(result.get("nearest_options") or [])
         extra = f" with {opts} nearest options" if opts else ""
-        return f"Escalated ({result.get('category')}){extra}: {result.get('reason')}"
+        cat = str(result.get('category') or '').replace('_', ' ').title()
+        return f"Escalated ({cat}){extra}: {result.get('reason')}"
     if tool_name == "write_audit":
         return result.get("decision", "Audit entry logged.")
     return "Step completed."
@@ -435,7 +475,7 @@ def _one_line_why(tool_name: str, args: dict[str, Any], result: dict[str, Any], 
 def _step_status_for(tool_name: str, result: dict[str, Any], ctx: AgentRunContext) -> str:
     if not result.get("ok"):
         return "blocked" if result.get("guardrail_blocked") else "error"
-    if tool_name == "check_dependencies_and_d30":
+    if tool_name in ("check_dependencies_and_d36", "check_dependencies_and_d30"):
         return "blocked" if result.get("blocked") else "ok"
     if tool_name == "check_dno_flow":
         if result.get("blocked"):
@@ -524,7 +564,7 @@ def stream_rebooking_agent(
             "role": "user",
             "content": (
                 f"Process cancelled/aborted job '{job_ref}' in '{mode}' mode. "
-                "Follow all rules, validate dependencies/D30 and DNO, rank capacity, and complete the audit log."
+                "Follow all rules, validate dependencies/D36 and DNO, rank capacity, and complete the audit log."
             ),
         },
     ]

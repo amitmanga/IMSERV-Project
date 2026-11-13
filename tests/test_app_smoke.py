@@ -68,15 +68,20 @@ class AppSmokeTests(unittest.TestCase):
         self.assertEqual(len(forecast_months), 12)
 
     def test_financial_dashboard_uses_future_months(self):
-        payload = self.assert_json_response("/api/financial/kpis?year=2026")
+        manifest = json.loads(
+            (Path(__file__).resolve().parent.parent / "data" / "inputs" / "manifest.json").read_text()
+        )
+        forecast_start, forecast_end = manifest["forecast_period"].split(" to ")
+        current_year = forecast_start[:4]
+        payload = self.assert_json_response(f"/api/financial/kpis?year={current_year}")
         months = [row["month"] for row in payload["monthly_trend"]]
 
-        self.assertEqual(months[0], "2026-06")
-        self.assertEqual(months[-1], "2027-05")
+        self.assertEqual(months[0], forecast_start[:7])
+        self.assertEqual(months[-1], forecast_end[:7])
         self.assertEqual(len(months), 12)
 
-        single_month = self.assert_json_response("/api/financial/kpis?year=2026&month=2026-06")
-        self.assertEqual([row["month"] for row in single_month["monthly_trend"]], ["2026-06"])
+        single_month = self.assert_json_response(f"/api/financial/kpis?year={current_year}&month={forecast_start[:7]}")
+        self.assertEqual([row["month"] for row in single_month["monthly_trend"]], [forecast_start[:7]])
 
     def test_filters_supplier_list_falls_back_to_csv_without_sqlite(self):
         with patch("engine.sqlite_store.query_rows", return_value=None):

@@ -2717,10 +2717,10 @@ def _release_generation_lock() -> None:
 
 def _auto_generate_data_enabled() -> bool:
     import os
-    return (
-        os.getenv("IMSERV_AUTO_GENERATE_DATA", "").lower() == "true"
-        or (os.getenv("FLASK_ENV", "development") == "development" and not os.getenv("RENDER"))
-    )
+    val = os.getenv("IMSERV_AUTO_GENERATE_DATA", "").lower()
+    if val in ("false", "0", "no", "disabled"):
+        return False
+    return True
 
 def _read_data_manifest() -> dict:
     import json
@@ -2753,7 +2753,7 @@ def _data_window_state(current_anchor: str) -> tuple[bool, bool]:
             print(f"EXL: Missing required file {f}.")
             return True, False
 
-    from engine.date_windows import rolling_actual_window, parse_iso_date
+    from engine.date_windows import rolling_actual_window, parse_iso_date, week_start
     actual_start, _ = rolling_actual_window()
 
     try:
@@ -2770,16 +2770,22 @@ def _data_window_state(current_anchor: str) -> tuple[bool, bool]:
                 print(f"EXL: master_operations.csv first date {rd} != expected {actual_start}. Marking stale.")
                 return False, True
                 
-        # Check booking_journey.csv strictly
+        # Check booking_journey.csv strictly against week containing actual_start
+        expected_week_start = week_start(actual_start)
         with open(input_dir / "booking_journey.csv", encoding="utf-8-sig", newline="") as f:
             reader = _csv.DictReader(f)
             first_row = next(reader, None)
             if not first_row:
                 return True, False
             ws = parse_iso_date(first_row.get("week_start", ""))
-            if not ws or abs((ws - actual_start).days) > 7:
-                print(f"EXL: booking_journey.csv out of sync with {actual_start}. Marking stale.")
+            if not ws or ws != expected_week_start:
+                print(f"EXL: booking_journey.csv out of sync with {expected_week_start} (got {ws}). Marking stale.")
                 return False, True
+
+        manifest = _read_data_manifest()
+        if manifest and manifest.get("rolling_anchor_month") != current_anchor:
+            print(f"EXL: manifest anchor {manifest.get('rolling_anchor_month')} != expected {current_anchor}. Marking stale.")
+            return False, True
 
     except Exception as e:
         print(f"EXL: CSV spot-check error: {e}. Marking stale.")
@@ -2814,21 +2820,17 @@ def _ensure_data() -> None:
         print(f"EXL: Data is {reason} but auto-generation is disabled.")
         return
 
-    if missing:
-        print("EXL: Data files are missing; date-only refresh cannot run without an existing dataset.")
-        return
-
     reason = "not found" if missing else "out-of-date for current rolling window"
-    print(f"EXL: Data is {reason}; rolling existing CSV dates now...")
+    print(f"EXL: Data is {reason}; automatically generating data and updating CSV files now...")
 
     if not _acquire_generation_lock():
-        print("EXL: Another worker is rolling data dates. Waiting for it to finish...")
+        print("EXL: Another worker is generating data. Waiting for it to finish...")
         return
 
     try:
         missing2, stale2 = _data_window_state(current_anchor)
         if not missing2 and not stale2:
-            print("EXL: Another worker already finished regeneration. Ready.")
+            print("EXL: Another worker already finished generation. Ready.")
             _DATA_READY_ANCHOR = current_anchor
             _DATA_READY_SIGNATURE = (
                 _input_file_signature("master_operations.csv"),
@@ -2836,8 +2838,14 @@ def _ensure_data() -> None:
             )
             return
 
-        from engine.date_roller import roll_existing_data_dates
-        roll_result = roll_existing_data_dates()
+        from engine.data_generator import generate_all
+        generate_all()
+
+        try:
+            from scripts.augment_rebooking_data import generate_rebooking_datasets
+            generate_rebooking_datasets()
+        except Exception as aug_err:
+            print(f"EXL: Rebooking dataset augmentation warning: {aug_err}")
 
         try:
             from engine.ingestion import clear_data_caches
@@ -2849,12 +2857,17 @@ def _ensure_data() -> None:
             _clear_journey_cache()
             _clear_cancellation_cache()
             build_sqlite_store(force=True)
-        except Exception:
-            pass
+        except Exception as ing_err:
+            print(f"EXL: SQLite store refresh warning: {ing_err}")
+
+        try:
+            from engine.rebooking_store import seed_rebooking_store
+            seed_rebooking_store(force=True)
+        except Exception as seed_err:
+            print(f"EXL: Rebooking store seed warning: {seed_err}")
 
         print(
-            "EXL: Existing CSV dates rolled successfully "
-            f"for anchor {current_anchor} (month_delta={roll_result['month_delta']})."
+            f"EXL: Data generated and CSV files replaced successfully for anchor {current_anchor}."
         )
         _DATA_READY_ANCHOR = current_anchor
         _DATA_READY_SIGNATURE = (
@@ -2862,7 +2875,7 @@ def _ensure_data() -> None:
             _input_file_signature("booking_journey.csv"),
         )
     except Exception as exc:
-        print(f"EXL: CSV date roll failed: {exc}")
+        print(f"EXL: Automatic data generation failed: {exc}")
     finally:
         _release_generation_lock()
 

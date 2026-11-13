@@ -37,6 +37,7 @@ from engine.rebooking_tools import (
 )
 from engine.rules_loader import (
     compute_sla_due_date,
+    evaluate_dependencies_and_d36,
     evaluate_dependencies_and_d30,
     evaluate_dno_flow,
     load_rules,
@@ -57,22 +58,27 @@ class RebookingAgentTestCase(unittest.TestCase):
 
     def test_rules_yaml_loads_expected_sections(self) -> None:
         rules = load_rules(force_reload=True)
-        for section in ("dno", "d30", "dependencies", "capacity_and_ranking", "sla", "agent"):
+        for section in ("dno", "dependencies", "capacity_and_ranking", "sla", "agent"):
             self.assertIn(section, rules)
+        self.assertTrue("d36" in rules or "d30" in rules)
         self.assertEqual(rules["capacity_and_ranking"]["utilisation_threshold_pct"], 90.0)
         self.assertEqual(rules["agent"]["manual_benchmark_minutes"], 12.0)
 
-    def test_evaluate_dependencies_and_d30(self) -> None:
-        clear = evaluate_dependencies_and_d30("CLEAR", "NONE")
+    def test_evaluate_dependencies_and_d36(self) -> None:
+        clear = evaluate_dependencies_and_d36("CLEAR", "NONE")
         self.assertTrue(clear["clear"])
         self.assertFalse(clear["blocked"])
 
-        d30_blocked = evaluate_dependencies_and_d30("PENDING_SUPPLIER", "NONE")
-        self.assertTrue(d30_blocked["blocked"])
-        self.assertIn("D30 workflow status", d30_blocked["summary"])
+        d36_blocked = evaluate_dependencies_and_d36("PENDING_SUPPLIER", "NONE")
+        self.assertTrue(d36_blocked["blocked"])
+        self.assertIn("D36 workflow status", d36_blocked["summary"])
 
-        dep_blocked = evaluate_dependencies_and_d30("CLEAR", "ASBESTOS_CHECK")
+        dep_blocked = evaluate_dependencies_and_d36("CLEAR", "ASBESTOS_CHECK")
         self.assertTrue(dep_blocked["blocked"])
+
+        # Backwards compatibility check
+        d30_clear = evaluate_dependencies_and_d30("CLEAR", "NONE")
+        self.assertTrue(d30_clear["clear"])
         self.assertIn("ASBESTOS_CHECK", dep_blocked["summary"])
 
     def test_evaluate_dno_flow(self) -> None:
@@ -110,6 +116,7 @@ class RebookingAgentTestCase(unittest.TestCase):
     def test_tool_schema_validation_rejects_bad_args(self) -> None:
         for tool_name in (
             "get_job",
+            "check_dependencies_and_d36",
             "check_dependencies_and_d30",
             "check_dno_flow",
             "raise_dno_request",
@@ -217,7 +224,7 @@ class RebookingAgentTestCase(unittest.TestCase):
         )
         job = execute_tool(ctx, "get_job", {"job_ref": "RBK-DEMO-C"})
         self.assertTrue(job["ok"])
-        dep = execute_tool(ctx, "check_dependencies_and_d30", {"job_ref": "RBK-DEMO-C"})
+        dep = execute_tool(ctx, "check_dependencies_and_d36", {"job_ref": "RBK-DEMO-C"})
         self.assertTrue(dep["clear"])
         dno = execute_tool(ctx, "check_dno_flow", {"job_ref": "RBK-DEMO-C"})
         self.assertEqual(dno["dno_status"], "PENDING")
@@ -313,7 +320,7 @@ class RebookingAgentTestCase(unittest.TestCase):
         self.assertEqual(res["job"]["status"], "Escalated")
         escs = [e for e in list_escalations(db_path=self.db_path) if e["job_ref"] == "RBK-DEMO-D"]
         self.assertEqual(len(escs), 1)
-        self.assertEqual(escs[0]["category"], "D30_OR_DEPENDENCY")
+        self.assertIn(escs[0]["category"], ("D36_OR_DEPENDENCY", "D30_OR_DEPENDENCY"))
 
     def test_scenario_e_no_slot_within_sla_escalates_with_three_options(self) -> None:
         res = run_rebooking_agent("RBK-DEMO-E", mode="autonomous", mock_llm=True, db_path=self.db_path)

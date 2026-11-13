@@ -71,21 +71,23 @@ def required_skill_for_job(job_type: str, meter_type: str) -> str:
     return "SMETS2_ELEC"
 
 
-def evaluate_dependencies_and_d30(
-    d30_status: str,
-    dependency_flags: str | list[str] | None,
+def evaluate_dependencies_and_d36(
+    d36_status: str | None = "CLEAR",
+    dependency_flags: str | list[str] | None = None,
     rules: dict[str, Any] | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
-    """Evaluate whether third-party dependencies and D30 status block rebooking."""
+    """Evaluate whether third-party dependencies and D36 status block rebooking."""
     rules = rules or load_rules()
-    d30_cfg = rules.get("d30", {})
+    d36_cfg = rules.get("d36") or rules.get("d30", {})
     dep_cfg = rules.get("dependencies", {})
 
-    clear_d30 = {str(s).upper() for s in d30_cfg.get("clear_statuses", ["CLEAR", "COMPLETE", "NOT_REQUIRED"])}
-    blocking_d30 = {str(s).upper() for s in d30_cfg.get("blocking_statuses", [])}
+    clear_d36 = {str(s).upper() for s in d36_cfg.get("clear_statuses", ["CLEAR", "COMPLETE", "NOT_REQUIRED"])}
+    blocking_d36 = {str(s).upper() for s in d36_cfg.get("blocking_statuses", [])}
     blocking_deps = {str(f).upper() for f in dep_cfg.get("blocking_flags", [])}
 
-    norm_d30 = (d30_status or "CLEAR").strip().upper()
+    raw_val = d36_status if d36_status is not None else kwargs.get("d30_status")
+    norm_d36 = (str(raw_val) if raw_val is not None else "CLEAR").strip().upper()
     if isinstance(dependency_flags, str):
         raw_flags = [f.strip().upper() for f in dependency_flags.split(",") if f.strip()]
     else:
@@ -93,8 +95,8 @@ def evaluate_dependencies_and_d30(
     active_flags = [f for f in raw_flags if f != "NONE"]
 
     blockers: list[str] = []
-    if norm_d30 in blocking_d30 or (norm_d30 and norm_d30 not in clear_d30):
-        blockers.append(f"D30 workflow status is '{norm_d30}' (not clear)")
+    if norm_d36 in blocking_d36 or (norm_d36 and norm_d36 not in clear_d36):
+        blockers.append(f"D36 workflow status is '{norm_d36}' (not clear)")
 
     flagged_blockers = [f for f in active_flags if f in blocking_deps]
     if flagged_blockers:
@@ -104,11 +106,15 @@ def evaluate_dependencies_and_d30(
     return {
         "clear": is_clear,
         "blocked": not is_clear,
-        "d30_status": norm_d30,
+        "d36_status": norm_d36,
+        "d30_status": norm_d36,
         "dependency_flags": active_flags or ["NONE"],
         "blocking_reasons": blockers,
-        "summary": "All D30 and third-party dependency checks cleared." if is_clear else "; ".join(blockers),
+        "summary": "All D36 and third-party dependency checks cleared." if is_clear else "; ".join(blockers),
     }
+
+
+evaluate_dependencies_and_d30 = evaluate_dependencies_and_d36
 
 
 def evaluate_dno_flow(

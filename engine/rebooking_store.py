@@ -67,6 +67,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             abort_reason TEXT,
             original_engineer_id TEXT,
             customer_alias TEXT,
+            d36_status TEXT,
             d30_status TEXT,
             dependency_flags TEXT,
             dno_status TEXT,
@@ -164,6 +165,17 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
     """)
 
+    cursor = conn.execute("PRAGMA table_info(rebooking_jobs)")
+    cols = {r["name"] for r in cursor.fetchall()}
+    if cols and "d36_status" not in cols:
+        conn.execute("ALTER TABLE rebooking_jobs ADD COLUMN d36_status TEXT")
+        if "d30_status" in cols:
+            conn.execute("UPDATE rebooking_jobs SET d36_status = d30_status WHERE d36_status IS NULL")
+    if cols and "d30_status" not in cols:
+        conn.execute("ALTER TABLE rebooking_jobs ADD COLUMN d30_status TEXT")
+        if "d36_status" in cols:
+            conn.execute("UPDATE rebooking_jobs SET d30_status = d36_status WHERE d30_status IS NULL")
+
 
 def _ensure_source_csvs() -> None:
     jobs_csv = INPUTS_DIR / "rebooking_jobs.csv"
@@ -213,9 +225,9 @@ def seed_rebooking_store(force: bool = False, db_path: Path | None = None) -> No
                         job_type, required_skill, original_status, status,
                         requested_date, booked_date, sla_due_date,
                         cancellation_reason, abort_reason, original_engineer_id,
-                        customer_alias, d30_status, dependency_flags, dno_status,
+                        customer_alias, d36_status, d30_status, dependency_flags, dno_status,
                         dno_ref, is_vulnerable, vulnerability_reason, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -225,7 +237,10 @@ def seed_rebooking_store(force: bool = False, db_path: Path | None = None) -> No
                             r["job_type"], r["required_skill"], r["original_status"], r["status"],
                             r["requested_date"], r["booked_date"], r["sla_due_date"],
                             r["cancellation_reason"], r["abort_reason"], r["original_engineer_id"],
-                            r["customer_alias"], r["d30_status"], r["dependency_flags"], r["dno_status"],
+                            r["customer_alias"],
+                            r.get("d36_status") or r.get("d30_status", "CLEAR"),
+                            r.get("d36_status") or r.get("d30_status", "CLEAR"),
+                            r["dependency_flags"], r["dno_status"],
                             r.get("dno_ref", ""), int(r.get("is_vulnerable") or 0),
                             r.get("vulnerability_reason", ""), _utc_now(),
                         )
@@ -268,6 +283,9 @@ def seed_rebooking_store(force: bool = False, db_path: Path | None = None) -> No
 
 def ensure_rebooking_store(db_path: Path | None = None) -> None:
     seed_rebooking_store(force=False, db_path=db_path)
+
+
+seed_initial_data = seed_rebooking_store
 
 
 def reset_rebooking_store(regenerate_csv: bool = False, db_path: Path | None = None) -> dict[str, Any]:
@@ -546,7 +564,7 @@ def list_escalations(status: str | None = None, db_path: Path | None = None) -> 
     ensure_rebooking_store(db_path)
     sql = """
         SELECT e.*, j.scenario_label, j.job_type, j.supplier_name, j.sla_due_date,
-               j.is_vulnerable, j.customer_alias, j.d30_status, j.dependency_flags, j.dno_status
+               j.is_vulnerable, j.customer_alias, j.d36_status, j.d30_status, j.dependency_flags, j.dno_status
         FROM planner_escalations e
         LEFT JOIN rebooking_jobs j ON j.job_ref = e.job_ref
         WHERE e.status != 'SUPERSEDED'

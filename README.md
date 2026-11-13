@@ -26,7 +26,7 @@ The app is designed for operational leaders, planning teams, field managers, and
 - Single meter lookup for before-call context, including meter details, MOP/DC status, visit history, and dialler contacts.
 - Financial scenario modelling for revenue, cost, margin, capacity status, and cost per executed appointment.
 - AI-assisted operational summaries and recommendations through a server-side chatbot proxy.
-- **Rebooking Agent (Agentic AI)**: end-to-end automated recovery of cancelled and aborted jobs with configurable DNO/D30/dependency rules (`config/rules.yaml`), Assisted vs Autonomous modes, live SSE reasoning timeline, planner escalation queue, simulated customer notifications, and CSV audit logging.
+- **Rebooking Agent (Agentic AI)**: end-to-end automated recovery of cancelled and aborted jobs with configurable DNO/D36/dependency rules (`config/rules.yaml`), Assisted vs Autonomous modes, live SSE reasoning timeline, planner escalation queue, simulated customer notifications, and CSV audit logging.
 
 ---
 
@@ -54,7 +54,7 @@ The application uses a Flask monolith for API routes, modular Python files for a
 | Resource Planning | Shows short-term engineer-slot utilisation and long-term demand versus capacity forecasts. |
 | Single Meter View | Looks up an MPXN and displays meter, supplier, MOP, DC, visit, and dialler contact history. |
 | Scenario Impact | Simulates appointment volume, success rate, cancellation rate, cost, revenue, engineer count, and margin outcomes. |
-| Rebooking Agent | Agentic AI tool-calling workflow (`Detect -> Dependencies/D30 -> DNO -> Capacity -> Decide -> Rebook -> Message -> Log`) with live SSE streaming, 28-day regional utilisation view, Assisted human approval, escalations, and audit CSV export. |
+| Rebooking Agent | Agentic AI tool-calling workflow (`Detect -> Dependencies/D36 -> DNO -> Capacity -> Decide -> Rebook -> Message -> Log`) with live SSE streaming, 28-day regional utilisation view, Assisted human approval, escalations, and audit CSV export. |
 
 ---
 
@@ -175,7 +175,7 @@ The included `render.yaml` contains the non-secret deployment settings. Keep `HF
 IMSERV-Project/
 |-- app.py                         # Flask application and API routes
 |-- config/
-|   |-- rules.yaml                 # Configurable DNO, D30, dependency, capacity & SLA rules
+|   |-- rules.yaml                 # Configurable DNO, D36, dependency, capacity & SLA rules
 |-- requirements.txt               # Python runtime dependencies
 |-- render.yaml                    # Render deployment configuration
 |-- Dockerfile
@@ -196,7 +196,7 @@ IMSERV-Project/
 |   |-- field_ops_engine.py        # Capacity and field operations planning
 |   |-- financial_engine.py        # Financial scenario modelling
 |   |-- ai_recommendations.py      # Operational recommendation logic
-|   |-- rules_loader.py            # YAML rules evaluator (DNO/D30/dependencies/SLA)
+|   |-- rules_loader.py            # YAML rules evaluator (DNO/D36/dependencies/SLA)
 |   |-- rebooking_store.py         # SQLite persistence for rebooking queue, slots, escalations & audit
 |   |-- rebooking_tools.py         # 10 JSON-schema tools + guardrails for Rebooking Agent
 |   |-- rebooking_agent.py         # Tool-calling agent loop (Mock & Live HF LLM + SSE streaming)
@@ -350,7 +350,7 @@ All business rules are decoupled into [`config/rules.yaml`](config/rules.yaml) a
   - Specific cancellation/abort reasons requiring DNO even on exchanges/repairs: `Faulty meter location`, `Exposed wires`, `Service head fault`.
   - Default DNO turnaround lead time: **`7` calendar days** (`default_lead_time_days`). When DNO status is `PENDING`, `raise_dno_request` creates a simulated request (`DNO-SIM-*`) and constrains slot selection to `slot_date >= today + 7 days`.
   - `NOT_REQUIRED` and `COMPLETE` proceed immediately; `BLOCKED` stops and escalates to the planner queue.
-- **D30 Industry Flow Statuses**:
+- **D36 Industry Flow Statuses**:
   - Clear statuses: `CLEAR`, `COMPLETE`, `NOT_REQUIRED`.
   - Blocking statuses: `REJECTED`, `PENDING_SUPPLIER`, `DATA_MISMATCH`, `BLOCKED`, `EXCEPTION` (and any unrecognised non-clear status).
 - **Third-Party Blocking Dependencies**:
@@ -369,7 +369,7 @@ All business rules are decoupled into [`config/rules.yaml`](config/rules.yaml) a
 Start the server (`python app.py`), open `http://localhost:5000`, and click **Rebooking Agent** in the left navigation. Ensure **Execution Mode = Assisted (Human Approve)** and **LLM Brain = Deterministic Mock** (or `MOCK_LLM=false` for live HF tool calling), then click **Reset Demo** if needed:
 
 1. **Scenario (a) Clean Rebook & Assisted Approval (`RBK-DEMO-A`) — ~60s**:
-   - Select `RBK-DEMO-A` (`EXCHANGE`, `CLEAR` D30, `NOT_REQUIRED` DNO) and click **Run Agent**.
+   - Select `RBK-DEMO-A` (`EXCHANGE`, `CLEAR` D36, `NOT_REQUIRED` DNO) and click **Run Agent**.
    - Watch steps 1–8 stream live via SSE. Notice `Rebook` pauses at `AWAITING_APPROVAL` because Assisted mode blocks auto-commit, while `Message` previews the polite SMS marked **`Simulated send`**.
    - Click **Edit Message** to tweak the text if desired, click **Save Message**, then click **Approve & Execute** to commit the booking (`rebook_flag = True`).
 2. **Switch to Autonomous Mode & Scenario (b) High-Utilisation Avoidance (`RBK-DEMO-B`) — ~45s**:
@@ -379,8 +379,8 @@ Start the server (`python app.py`), open `http://localhost:5000`, and click **Re
 3. **Scenario (c) DNO Pending (`RBK-DEMO-C`) — ~45s**:
    - Run `RBK-DEMO-C` (`NEW_INSTALL`, DNO=`PENDING`).
    - Show step 3 (`raise_dno_request`) submitting a simulated DNO clearance with a 7-day lead time, constraining the chosen green slot to `today + 7 days` or later while still beating SLA.
-4. **Scenario (d) Blocked by D30 / Dependency (`RBK-DEMO-D`) — ~45s**:
-   - Run `RBK-DEMO-D`. Step 2 detects blocking D30 (`PENDING_SUPPLIER`) + `ASBESTOS_CHECK`, halts cleanly, skips downstream rebook/message steps, and adds the job to the **Planner Escalation Queue**.
+4. **Scenario (d) Blocked by D36 / Dependency (`RBK-DEMO-D`) — ~45s**:
+   - Run `RBK-DEMO-D`. Step 2 detects blocking D36 (`PENDING_SUPPLIER`) + `ASBESTOS_CHECK`, halts cleanly, skips downstream rebook/message steps, and adds the job to the **Planner Escalation Queue**.
 5. **Scenario (e) No Slot Within SLA (`RBK-DEMO-E`) — ~45s**:
    - Run `RBK-DEMO-E` (tight SLA vs high near-term utilisation). Step 5 finds no compliant slot inside SLA, escalates (`SLA-Safe %` updates in KPIs), and surfaces the **3 nearest post-SLA options** in the **Planner Escalation Queue** with one-click **Book Option** buttons.
 6. **Scenario (f) Vulnerable / PSR Customer Guardrail & Audit Export (`RBK-DEMO-F`) — ~60s**:
